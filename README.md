@@ -1111,6 +1111,8 @@ order by date desc, symbol
 | 安装、配置、启动脚本          | [test_timescaledb.sh](test_timescaledb.sh)               |
 | 小数据集测试完整脚本          | [test_timescaledb_small.sql](test_timescaledb_small.sql) |
 | 大数据集测试完整脚本          | [test_timescaledb_big.sql](test_timescaledb_big.sql)     |
+| PostgresQL 配置               | [pg_hba.conf](pg_hba.conf)                               |
+| PostgresQL 权限配置           | [postgresql.conf](postgresql.conf)                       |
 | 股票代码所有可能值            | [symbols.txt](symbols.txt)                               |
 | 创建 Symbol 枚举类型 SQL 语句 | [make_symbol_enum.sql](make_symbol_enum.sql)             |
 | 生成 Symbol 枚举类型脚本      | [make_symbol_enum.coffee](make_symbol_enum.coffee)       |
@@ -1121,7 +1123,7 @@ order by date desc, symbol
 | 脚本                 | 文件                                                 |
 | -------------------- | ---------------------------------------------------- |
 | 安装、配置、启动脚本 | [test_dolphindb.sh](test_dolphindb.sh)               |
-| 小数据集测试完整脚本 | [test_dolphindb_small.sql](test_dolphindb_small.sql) |
-| 大数据集测试完整脚本 | [test_dolphindb_big.sql](test_dolphindb_big.sql)     |
+| 小数据集测试完整脚本 | [test_dolphindb_small.txt](test_dolphindb_small.txt) |
+| 大数据集测试完整脚本 | [test_dolphindb_big.txt](test_dolphindb_big.txt)     |
 
 
