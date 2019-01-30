@@ -1,0 +1,350 @@
+// ----------------- 创建分区方案
+// data path
+FP_INFO 	= '/data/devices/devices_big_device_info.csv'
+FP_READINGS = '/data/devices/devices_big_readings.csv'
+
+FP_DB_READINGS = '/data/readings'
+
+// 创建两张表的 schema
+COLS_INFO 		= `device_id`api_version`manufacturer`model`os_name
+COLS_READINGS 	= `time`device_id`battery_level`battery_status`battery_temperature`bssid`cpu_avg_1min`cpu_avg_5min`cpu_avg_15min`mem_free`mem_used`rssi`ssid
+
+// tb_schema_readings = extractTextSchema(FP_READINGS)
+
+TYPES_INFO 		= `SYMBOL`STRING`STRING`STRING`STRING
+TYPES_READINGS 	= `DATETIME`SYMBOL`DOUBLE`STRING`DOUBLE`STRING`DOUBLE`DOUBLE`DOUBLE`DOUBLE`DOUBLE`DOUBLE`SYMBOL
+
+schema_info 	= table(COLS_INFO, TYPES_INFO)
+schema_readings = table(COLS_READINGS, TYPES_READINGS)
+
+
+// 创建分区数据库并定义分区方式
+db = database(FP_DB_READINGS, RANGE, 2016.11.15T00:00:00 + 86400 * 0..4)
+
+
+// ----------------- 从 CSV 导入 readings 表的数据到 readings 数据库并完成数据分区操作
+timer readings = loadTextEx(db, `readings, `time, FP_READINGS, , schema_readings)
+// 28 s
+
+
+// 关闭数据库
+close(db)
+readings = NULL
+
+
+// ----------------- 从 CSV 导入 device_info 表的数据到 device_info 内存表
+device_info = loadText(FP_INFO, , schema_info)
+
+
+// 加载 readings 表
+timer readings = loadTable(FP_DB_READINGS, `readings)
+// 30 ms
+
+
+readings = loadTable(FP_DB_READINGS, `readings, , true)
+readings = loadTable(FP_DB_READINGS, `readings, 2016.11.15T00:00:00 + 86400 * 0..4, true)
+
+
+timer select count(*) from readings
+// 0.604 ms
+
+
+// 查看 schema
+schema(device_info)
+schema(readings)
+
+
+// ----------------- 导出数据
+timer saveText((select * from readings), '/data/readings_dump.csv')
+// 28392.922 ms
+
+
+// ----------------- 查询性能测试
+// 根据设备 ID 过滤
+timer select count(*) from readings where device_id = 'demo000100';
+// 31 ms
+
+// 根据时间过滤
+timer select count(*) from readings where time <= 2016.11.16 21:00:00;
+// 28.65 ms
+
+timer select count(*) from readings where time >= 2016.11.16 21:00:00;
+// 26.363
+
+16320000 + 13683000
+
+// 根据整型和时间过滤
+timer select count(*) from readings where time <= 2016.11.16 21:00:00 and battery_level >= 90;
+// 89.531 ms
+
+
+// 根据整型、浮点型和时间过滤
+timer select count(*) from readings where time <= 2016.11.17 21:00:00 and battery_level >= 90 and cpu_avg_1min < 10.1;
+// 134.485 ms
+
+timer select count(*) from readings where time <= 2016.11.17 21:00:00, battery_level >= 90, cpu_avg_1min < 10.1;
+
+
+// 按设备连接的 SSID 分组（单列）
+timer select avg(battery_level) from readings group by ssid;
+// 142.92 ms
+
+
+// 按设备连接的 SSID 分组（多列）
+timer select avg(battery_level), min(battery_level) from readings group by ssid;
+// 116.473 ms
+
+
+// 按小时分组（单列）
+timer
+select avg(cpu_avg_1min)
+from readings
+where 2016.11.16 21:00:00 <= time and time <= 2016.11.17 08:00:00
+group by hour(time);
+// 55.461 ms
+
+
+// 按小时分组（多列）
+timer
+select
+    avg(cpu_avg_1min),
+    max(cpu_avg_1min)
+from readings
+where 2016.11.16 21:00:00 <= time and time <= 2016.11.17 08:00:00
+group by hour(time);
+// 70.547 ms
+
+
+// 按设备 ID、小时分组（单列）
+timer
+select
+    avg(cpu_avg_1min)
+from readings
+where 2016.11.16 21:00:00 <= time and time <= 2016.11.17 08:00:00
+group by hour(time), device_id;
+// 181.143 ms
+
+
+// 按设备 ID、小时分组（多列）
+timer
+select
+    avg(cpu_avg_1min),
+    max(cpu_avg_1min)
+from readings
+where 2016.11.16 21:00:00 <= time and time <= 2016.11.17 08:00:00
+group by hour(time), device_id;
+// 213.301 ms
+
+
+// 根据时间过滤 + 按设备 ID、小时分组
+timer
+select
+    avg(cpu_avg_1min),
+    max(cpu_avg_1min)
+from readings
+where 2016.11.16 21:00:00 <= time and time <= 2016.11.17 08:00:00
+group by device_id, hour(time);
+// 227.405 ms
+
+
+// 排序
+timer
+select count(*)
+from readings
+group by battery_level
+order by battery_level asc;
+// 95.66 ms
+
+
+
+
+// --------------- 内置函数计算性能测试 ---------------
+// 计数（count）
+timer select count(battery_level) from readings;
+// 0.585 ms
+
+
+// 归一（distinct）
+timer select distinct(battery_level) from readings;
+// 85.026 ms
+
+
+// 平均值（avg）
+timer select avg(battery_level) from readings;
+// 11.275 ms
+
+
+// 标准差（std）
+timer select std(battery_level) from readings;
+// 21.56 ms
+
+
+// 求和（sum）
+timer select sum(battery_level) from readings;
+// 11.425 ms
+
+
+// 最大值（max）
+timer select max(battery_level) from readings;
+// 14.341 ms
+
+
+// 最小值（max）
+timer select min(battery_level) from readings;
+// 14.357 ms
+
+
+// 滑动平均值（moving_average）
+timer select mavg(battery_level, 10) from readings
+timer select mavg(battery_level, 100) from readings
+
+// 124.467 ms (n = 10)
+// 84.947 ms (n = 100)
+// O(n) 复杂度
+
+
+// 向下取整
+timer
+select floor(battery_temperature)
+from readings
+// 110.551 ms
+
+
+// 浮点相加
+timer
+select (cpu_avg_1min + cpu_avg_5min + cpu_avg_15min)
+from readings
+// 170.305 ms
+
+
+
+// 浮点相乘
+timer
+select (cpu_avg_1min * cpu_avg_5min * cpu_avg_15min)
+from readings
+// 71.45 ms （cpu_avg_* 等列已加载进内存）
+
+
+// 逻辑与
+timer
+select count(*)
+from readings
+where battery_temperature > 90.0 and battery_level < 40 and mem_free > 400000000;
+// 132.777 ms
+
+
+// 求对数
+timer
+select log(mem_free)
+from readings
+// 214.694 ms
+
+
+
+
+// --------------- 表连接性能测试
+timer
+select count(device_info)
+from ej(readings, device_info, `device_id)
+// 221.206 ms
+
+timer
+select count(device_info)
+from lj(readings, device_info, `device_id)
+// 2916.276 ms
+
+
+
+
+// ----------------- 复杂查询性能测试
+// 查询充电设备的最近 20 条电池温度记录
+timer
+select top 20
+    time,
+    device_id,
+    battery_temperature
+from readings
+where battery_status = 'charging'
+order by time desc
+// 876.276 ms （top 20 没有起到缩小查询范围的作用）
+
+
+// 查询充电设备的所有电池温度记录
+timer
+select
+    time,
+    device_id,
+    battery_temperature
+from readings
+where battery_status = 'charging'
+order by time desc
+// 105.454 ms （受上条查询的缓存影响）
+
+
+
+// 未在充电的、电量小于 33% 的、平均 1 分钟内最高负载的 5 个设备
+timer
+select top 5
+    readings.device_id,
+    battery_level,
+    battery_status,
+    cpu_avg_1min
+from ej(readings, device_info, `device_id)
+where battery_level < 33, battery_status = 'discharging'
+order by cpu_avg_1min desc, time desc
+// 1211.365 ms 
+
+// 未在充电的、电量小于 33% 的、平均 1 分钟内最高负载的所有设备
+timer
+select
+    readings.device_id,
+    battery_level,
+    battery_status,
+    cpu_avg_1min
+from ej(readings, device_info, `device_id)
+where battery_level < 33, battery_status = 'discharging'
+order by cpu_avg_1min desc, time desc
+// 3050.426 ms
+
+// 未在充电的、电量小于 33% 的、平均 1 分钟内最高负载的所有设备
+timer
+select top 5
+    readings.device_id,
+    battery_level,
+    battery_status,
+    cpu_avg_1min
+from ej(readings, device_info, `device_id)
+where battery_level < 33, battery_status = 'discharging'
+order by cpu_avg_1min desc, time desc
+// 3075.07 ms
+
+
+
+// 某两个型号的设备每小时最低电量的前 20 条数据
+timer {
+	device_ids = 
+		exec distinct device_id
+		from device_info
+		where model = 'pinto' or model = 'focus';
+
+	battery_levels = 
+		select min(battery_level) as min_battery_level
+		from readings
+		where device_id in device_ids
+		group by hour(time)
+		order by hour_time asc;
+
+	battery_levels[0:20]
+}
+// 116.365 ms
+
+
+
+
+
+
+
+
+
+
+
