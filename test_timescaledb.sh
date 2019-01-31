@@ -129,4 +129,14 @@ tail -n +2 /data/TAQ/csv/TAQ20070807.csv | timescaledb-parallel-copy --db-name t
 
 
 
+# at 17h14m38s, row rate 0.000000/sec (period), row rate 4813.130307/sec (overall), 2.987895E+08 total rows
+# COPY 298789504
 
+# at 20h32m9s, row rate 0.000000/sec (period), row rate 4462.411737/sec (overall), 3.299016E+08 total rows
+# COPY 329901638
+
+# at 20h40m27s, row rate 0.000000/sec (period), row rate 4525.943276/sec (overall), 3.368524E+08 total rows
+# COPY 336852381
+
+# at 20h35m51s, row rate 0.000000/sec (period), row rate 4427.001260/sec (overall), 3.282666E+08 total rows
+# COPY 328266571

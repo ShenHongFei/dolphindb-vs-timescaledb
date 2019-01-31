@@ -22,7 +22,7 @@ DolphinDB 以 C++ 编写，响应速度极快。提供类似于 Python 的脚本
 #### 测试内容
 
 1. 数据导入导出
-2. 磁盘占用空间
+2. 磁盘空间占用
 3. 简单查询（过滤、分组）
 4. 内置函数计算
 5. 表连接
@@ -30,65 +30,82 @@ DolphinDB 以 C++ 编写，响应速度极快。提供类似于 Python 的脚本
 
 #### 结论
 
-**导入性能：** DolphinDB / TimescaleDB ≈ `25 倍`
+###### 导入性能
 
-**导出性能：** DolphinDB / TimescaleDB ≈ `4 倍`
+|        DolphinDB         |          TimescaleDB          | 导入性能 （DolphinDB / TimescaleDB） |    Δ    |
+| :----------------------: | :---------------------------: | :----------------------------------: | :-----: |
+| 1,070,000 行/秒    28 秒 | 39,000 行/秒    12 分钟 43 秒 |                25 倍                 | 12 分钟 |
 
-###### 磁盘占用空间
+###### 导出性能
 
-空间利用率：DolphinDB / TimescaleDB ≈ `12 倍`
+|        DolphinDB         |          TimescaleDB          | 导入性能 （DolphinDB / TimescaleDB） |   Δ    |
+| :----------------------: | :---------------------------: | :----------------------------------: | :----: |
+| 1,070,000 行/秒    28 秒 | 288,000 行/秒    1 分钟 44 秒 |                 4 倍                 | 1 分钟 |
+
+###### 磁盘空间占用
+
+| DolphinDB | TimescaleDB | 空间利用率 （DolphinDB / TimescaleDB） |   Δ   |
+| :-------: | :---------: | :------------------------------------: | :---: |
+|  1.3 GB   |    15 GB    |                 12 倍                  | 14 GB |
 
 ###### 简单查询
 
-5 个测试样例 DolphinDB / TimescaleDB ≈ `50 倍`  
-7 个测试样例 DolphinDB / TimescaleDB ≈ `5 ~ 20 倍`  
-1 个测试样例 DolphinDB / TimescaleDB ≈ `50%`
+| 样例个数 | 性能比 （DolphinDB / TimescaleDB） |
+| :------: | :--------------------------------: |
+|    5     |               50 倍                |
+|    7     |             5 ~ 20 倍              |
+|    1     |                50%                 |
 
 ###### 内置函数计算
 
-滑动平均函数 DolphinDB 比 TimescaleDB 效率高一个数量级（`n 倍`）  
-4 个测试样例 DolphinDB / TimescaleDB ≈ `100+ 倍`  
-8 个测试样例 DolphinDB / TimescaleDB ≈ `10 ~ 50 倍`
+|   样例个数   | 性能比 （DolphinDB / TimescaleDB） |
+| :----------: | :--------------------------------: |
+| 滑动平均函数 |     效率高一个数量级（`n 倍`）     |
+|      4       |              100+ 倍               |
+|      8       |             10 ~ 50 倍             |
 
 ###### 表连接
 
-等值连接 DolphinDB / TimescaleDB ≈ `25 倍`  
-左连接   DolphinDB / TimescaleDB ≈ `1.8 倍`
+| 样例个数 | 性能比 （DolphinDB / TimescaleDB） |
+| :------: | :--------------------------------: |
+| 等值连接 |               25 倍                |
+|  左连接  |               1.8 倍               |
 
 ###### 复杂查询
 
-1 个测试样例 DolphinDB / TimescaleDB ≈ `1/200` （top 20 没有起到缩小查询范围的作用）
+| 样例个数 |     性能比 （DolphinDB / TimescaleDB）      |
+| :------: | :-----------------------------------------: |
+|    1     | 1/200 （top 20 没有起到缩小查询范围的作用） |
+|    2     |                   80+ 倍                    |
 
-2 个测试样例 DolphinDB / TimescaleDB ≈ `80+ 倍`
-
-### B. 大数据集测试（21 亿条，270 GB，23 个 CSV）
+### B. 大数据集测试（65 亿条，270 GB，23 个 CSV）
 
 #### 数据集
 
 我们从纽约证券交易所（NYSE）提供的 2007.08.01 - 2007.08.31 一个月的股市交易日历史数据作为大数据集进行测试。  
-数据集中共有 21 亿（2,147,483,647）条交易记录，一个 CSV 中保存一个交易日的记录。未压缩的 23 个 CSV 文件共计 270 GB。  
+数据集中共有 65 亿（6,561,693,704）条交易记录，一个 CSV 中保存一个交易日的记录。未压缩的 23 个 CSV 文件共计 270 GB。  
 数据集包含 8000 多支股票在一个月内的 `交易时间`, `股票代码`, `买入价`, `卖出价`, `买入量`, `卖出量` 等时序交易信息  
 来源：<https://www.nyse.com/market-data/historical>
 
 #### 测试内容
 
 1.  数据导入
-2.  磁盘占用空间
+2.  磁盘空间占用
 3.  经典查询
 
 #### 结论
 
 ###### 导入性能
 
-DolphinDB / TimescaleDB ≈ ` 倍`
+|         DolphinDB          |       TimescaleDB       | 导入性能 DolphinDB / TimescaleDB |    Δ    |
+| :------------------------: | :---------------------: | :------------------------------: | :-----: |
+| 2,900,000 行/秒    38 分钟 | 20,000 行/秒    92 小时 |              145 倍              | 91 小时 |
 
-###### 磁盘占用空间
+###### 磁盘空间占用
 
-空间利用率：DolphinDB / TimescaleDB ≈ ` 倍`
-
-
-
-
+| DolphinDB | TimescaleDB | 空间利用率 DolphinDB / TimescaleDB |   Δ    |
+| :-------: | :---------: | :--------------------------------: | :----: |
+|   51 GB   |   864 GB    |               17 倍                | 813 GB |
 
 
 ## 二、测试环境
@@ -290,7 +307,7 @@ timescaledb-parallel-copy \
     --file /data/devices/devices_big_readings.csv
 ```
 
-时间：`12 min 43 sec`, row rate 39000/sec (overall), 3.000000E+07 total rows
+共 `30,000,000` 条数据导入用时 `12 分钟 43 秒`, 平均速率 `39,000 行/秒`
 
 -   DolphinDB
 
@@ -299,9 +316,9 @@ readings = loadTextEx(db, `readings, `time, fp_readings, , schema_readings)
 device_info = loadText(fp_info, , schema_info)
 ```
 
-时间：`28 sec`
+共 `30,000,000` 条数据导入用时 `28 秒`, 平均速率 `1,070,000 行/秒`
 
-**导入性能：**DolphinDB / TimescaleDB ≈ `25 倍`
+**导入性能：**DolphinDB / TimescaleDB ≈ `25 倍`    Δ ≈ `12 分钟`
 
 ###### 导出数据为 CSV 文件
 
@@ -311,7 +328,7 @@ device_info = loadText(fp_info, , schema_info)
 time psql -d test -c "\COPY (SELECT * FROM readings) TO /data/devices_dump.csv DELIMITER ',' CSV"
 ```
 
-时间：`1m 44s`
+导出用时 `1 分钟 44 秒`，平均速率 `288,000 行/秒`
 
 -   DolphinDB
 
@@ -319,11 +336,11 @@ time psql -d test -c "\COPY (SELECT * FROM readings) TO /data/devices_dump.csv D
 saveText((select * from readings), '/data/readings_dump.csv')
 ```
 
-时间：`28 s`
+导出用时 `28 秒`，平均速率 `1,070,000 行/秒`
 
-**导出性能：** DolphinDB / TimescaleDB ≈ `4 倍`
+**导出性能：** DolphinDB / TimescaleDB ≈ `4 倍`    Δ ≈ `1 分钟`
 
-#### 2. 磁盘占用空间
+#### 2. 磁盘空间占用
 
 原始数据 4.2 GB CSV
 
@@ -883,14 +900,12 @@ for f in /data/TAQ/csv/*.csv ; do
 done
 ```
 
-时间：`4 小时` 仅导入了 `TAQ20070801` 一个文件（`16.6 GB`）, row rate `26572/sec` (overall), 3.834733E+08 total rows，还剩下 22 个文件（253 GB），预计导入所有文件需要 。
-
-预计将数据全部导入需要
+`24 小时` 仅仅导入了 `TAQ20070801, TAQ20070802, TAQ20070803, TAQ20070806, TAQ20070807` 五个文件，总大小 `70 GB`，导入速率仅为 `19400 行/秒`，仅导入了 16.7 行，预计将数据全部 `270 GB` 数据导入需要 `92 小时`。
 
 -   DolphinDB
 
 ```c++
-// 单机硬盘分区数据库不能同时并发写入数据（不支持事务），以下代码报错 The database didn't close normally or another transaction is in the progress.
+// 单机硬盘分区数据库不能并发写入数据（不支持事务），以下代码报错 The database didn't close normally or another transaction is in the progress.
 /*
     for (fp in fps) {
         job_id = fp.strReplace(".csv", "")
@@ -913,11 +928,34 @@ timer {
 
 ```
 
-时间：`38 分钟`
+`38 分钟` 导入了 `TAQ20070801 - TAQ20070831` 共 23 个文件
 
-**导入性能：** DolphinDB / TimescaleDB ≈ ` 倍`
+**导入性能：** DolphinDB / TimescaleDB ≈ `145 倍`    Δ ≈ `91 小时`
 
-#### 2. 经典查询
+#### 2. 磁盘空间占用
+
+-   TimescaleDB
+
+部分 70 GB 原始数据
+
+```sql
+select pg_size_pretty(pg_database_size('test'));
+-- 224 GB （对应 70 GB 原始数据）
+```
+
+将全部 270 GB 数据导入后预计占用 `864 GB`
+
+-   DolphinDB
+
+全部 270 GB 原始数据
+
+```shell
+du -sh /mnt/data/DolphinDB
+# 51 GB
+```
+**空间利用率：**DolphinDB / TimescaleDB ≈ `17 倍`    Δ ≈ `813 GB`
+
+#### 3. 经典查询
 
 ```sql
 -- 按 [股票代码、日期、时间范围] 过滤，并取前 1000 条
@@ -925,165 +963,198 @@ select *
 from taq
 where
     symbol = 'IBM' and
-    date = '2007-08-10' and
+	date = '2007-08-03' and
     time >= '09:30:00'
 limit 1000;
---
+-- 663 ms
+timer
 select top 1000 *
 from taq
 where
     symbol = 'IBM',
-    date = 2007.08.10,
+	date = 2007.08.03,
     time >= 09:30:00
 // 0.9 s
 
-
-
 -- 按 [多个股票代码、日期，时间范围、报价范围] 过滤，查询 [股票代码、时间、买入价、卖出价]
+select count(*)
+from (
+    select symbol, time, bid, ofr
+    from taq
+    where
+    	symbol in ('IBM', 'MSFT', 'GOOG', 'YHOO') and
+    	date = '2007-08-03' and
+    	'09:30:00' <= time and time < '09:30:59' and
+    	bid > 0 and
+    	ofr > bid
+    ) as t;
+-- 6 s 909 ms
+timer
 select symbol, time, bid, ofr
 from taq
 where
-    symbol in ('IBM', 'MSFT', 'GOOG', 'YHOO') and
-    date = '2007-08-10' and
-    '09:30:00' <= time and time < '09:30:59' and
-    bid > 0 and
-    ofr > bid;
---
-select symbol, time, bid, ofr
-from taq
-where
-    symbol in ('IBM', 'MSFT', 'GOOG', 'YHOO'), 
-    date = 2007.08.10, 
-    time between 09:30:00 : 09:30:59, 
-    bid > 0, 
-    ofr > bid
-// 
-性能：DolphinDB / TimescaleDB ≈  倍    Δ ≈  s
+	symbol in ('IBM', 'MSFT', 'GOOG', 'YHOO'), 
+	date = 2007.08.03, 
+	time between 09:30:00 : 09:30:59, 
+	bid > 0, 
+	ofr > bid
+// ~0.28
 
 
 -- 按 [股票代码、日期] 过滤，按 [卖出与买入价格差] 降序 排序
+select count(*)
+from (
+    select *
+    from taq
+    where
+    	date = '2007-08-06' and
+    	symbol = 'EBAY'
+    order by (ofr - bid) desc
+    ) as t;
+-- 2 s 475 ms
+timer
 select *
 from taq
 where
-    date = '2007-08-27' and
-    symbol = 'EBAY'
-order by (ofr - bid) desc;
---
-select *
-from taq
-where
-    date = 2007.08.27, 
-    symbol = 'EBAY'
+	date = 2007.08.06, 
+	symbol = 'EBAY'
 order by (ofr - bid) as spread desc
 // 245 ms
-性能：DolphinDB / TimescaleDB ≈  倍    Δ ≈  s
+
 
 
 -- 按 [日期、时间范围、卖出买入价格条件、股票代码] 过滤，查询 (各个股票 每分钟) [平均变化幅度]
-select
-    avg( (ofr - bid) / (ofr + bid) ) * 2 as spread,
-    time_bucket('1 minute', time) one_minute
-from taq
-where
-    date = '2007.08.01'  and
-    '09:30:00' <= time and time < '16:00:00'  and
-    bid > 0 and
-    ofr > bid
-group by symbol, one_minute;
---
+select count(*)
+from (
+    select
+        symbol,
+        date_trunc('minute', time) as one_minute,
+        avg( (ofr - bid) / (ofr + bid) ) * 2 as spread
+    from taq
+    where
+    	date = '2007.08.01'  and
+    	'09:30:00' <= time and time < '16:00:00'  and
+    	bid > 0 and
+    	ofr > bid
+    group by symbol, one_minute
+    ) as t;
+--  4 m 35 s
+timer
 select avg( (ofr - bid) / (ofr + bid) ) * 2 as spread 
 from taq 
 where 
-    date = 2007.08.01,
-    time between 09:30:00 : 16:00:00,
-    bid > 0,
-    ofr > bid
+	date = 2007.08.01,
+	time between 09:30:00 : 16:00:00,
+	bid > 0,
+	ofr > bid
 group by symbol, minute(time) as minute
 // 12.8 s
-性能：DolphinDB / TimescaleDB ≈  倍    Δ ≈  s
 
 
 
 -- 计算 某天 (每个股票 每分钟) 最大卖出与最小买入价之差
-select
-    max(ofr) - min(bid) as gap,
-    time_bucket('1 minute', time) one_minute
-from taq
-where
-    date = '2007-08-03' and
-    bid > 0 and
-    ofr > bid
-group by symbol, one_minute;
---
+select count(*)
+from (
+    select
+        symbol,
+        date_trunc('minute', time) as one_minute,
+        max(ofr) - min(bid) as gap
+    from taq
+    where
+    	date = '2007-08-03' and
+    	bid > 0 and
+    	ofr > bid
+    group by symbol, one_minute
+    ) as t;
+-- 4 m 39 s
+timer
 select max(ofr) - min(bid) as gap 
 from taq 
 where 
-    date = 2007.08.03, 
-    bid > 0, 
-    ofr > bid
+	date = 2007.08.03, 
+	bid > 0, 
+	ofr > bid
 group by symbol, minute(time) as minute
 // 8.6 s
-性能：DolphinDB / TimescaleDB ≈  倍    Δ ≈  s
 
 
 
--- 按 [股票代码、时间段] 过滤, 查询 (每天，时间段内每分钟) 均价
-select
-    avg(ofr + bid) / 2.0 as avg_price,
-    time_bucket('1 minute', time) one_minute
-from taq
-where
-    symbol = 'IBM' and
-    '09:30:00' <= time and time < '16:00:00'
-group by date, one_minute;
---
+-- 按 [股票代码、日期段、时间段] 过滤, 查询 (每天，时间段内每分钟) 均价
+select count(*)
+from (
+    select
+        date,
+        date_trunc('minute', time) as one_minute,
+        avg(ofr + bid) / 2.0 as avg_price
+    from taq
+    where
+    	symbol = 'IBM' and
+        '2007-08-01' <= date and date <= '2007-08-07' and
+    	'09:30:00' <= time and time < '16:00:00'
+    group by date, one_minute
+    ) as t;
+-- 6 s 320 ms
+timer
 select avg(ofr + bid) / 2.0 as avg_price
 from taq 
 where 
-    symbol = 'IBM', 
-    time between 09:30:00 : 16:00:00
+	symbol = 'IBM', 
+	date between 2007.08.01 : 2007.08.07
+	time between 09:30:00 : 16:00:00
 group by date, minute(time) as minute
 // 1.7 s
-性能：DolphinDB / TimescaleDB ≈  倍    Δ ≈  s
 
 
 
 -- 按 [日期段、时间段] 过滤, 查询 (每股票，每天) 均价
-select avg(ofr + bid) / 2.0 as avg_price
-from taq
-where
-    '2007-08-05' <= date and date <= '2007-08-07' and
-    '09:30:00' <= time and time <= '16:00:00'
-group by symbol, date;
+select count(*)
+from (
+    select
+        symbol,
+        date,
+        avg(ofr + bid) / 2.0 as avg_price
+    from taq
+    where
+    	'2007-08-05' <= date and date <= '2007-08-07' and
+    	'09:30:00' <= time and time <= '16:00:00'
+    group by symbol, date
+    ) as t;
 --
+timer
 select avg(ofr + bid) / 2.0 as avg_price
 from taq 
 where
-    date between 2007.08.05 : 2007.08.07,
-    time between 09:30:00 : 16:00:00
+	date between 2007.08.05 : 2007.08.07,
+	time between 09:30:00 : 16:00:00
 group by symbol, date
-// 
-性能：DolphinDB / TimescaleDB ≈  倍    Δ ≈  s
+//  s
 
 
 
 -- 计算 某个日期段 有成交记录的 (每天, 每股票) 加权均价，并按 (日期，股票代码) 排序
-select sum(bid * bidsiz) / sum(bidsiz) as vwab
-from taq
-where
-    '2007-08-05' <= date and date < '2007-08-11'
-group by date, symbol
-    having sum(bidsiz) > 0
-order by date desc, symbol;
+select count(*)
+from (
+    select
+        date,
+        symbol,
+        sum(bid * bidsiz) / sum(bidsiz) as vwab
+    from taq
+    where
+        '2007-08-05' <= date and date <= '2007-08-06'
+    group by date, symbol
+    	having sum(bidsiz) > 0
+    order by date desc, symbol
+    ) as t;
 --
+timer
 select wavg(bid, bidsiz) as vwab 
 from taq
-where date between 2007.08.05 : 2007.08.11
+where date between 2007.08.05 : 2007.08.06
 group by date, symbol
-    having sum(bidsiz) > 0
+	having sum(bidsiz) > 0
 order by date desc, symbol
 // 41s
-性能：DolphinDB / TimescaleDB ≈  倍    Δ ≈  s
+
 
 ```
 
@@ -1111,8 +1182,8 @@ order by date desc, symbol
 | 安装、配置、启动脚本          | [test_timescaledb.sh](test_timescaledb.sh)               |
 | 小数据集测试完整脚本          | [test_timescaledb_small.sql](test_timescaledb_small.sql) |
 | 大数据集测试完整脚本          | [test_timescaledb_big.sql](test_timescaledb_big.sql)     |
-| PostgresQL 配置               | [pg_hba.conf](pg_hba.conf)                               |
-| PostgresQL 权限配置           | [postgresql.conf](postgresql.conf)                       |
+| PostgresQL 配置               | [postgresql.conf](postgresql.conf)                       |
+| PostgresQL 权限配置           | [pg_hba.conf](pg_hba.conf)                               |
 | 股票代码所有可能值            | [symbols.txt](symbols.txt)                               |
 | 创建 Symbol 枚举类型 SQL 语句 | [make_symbol_enum.sql](make_symbol_enum.sql)             |
 | 生成 Symbol 枚举类型脚本      | [make_symbol_enum.coffee](make_symbol_enum.coffee)       |
