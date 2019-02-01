@@ -137,7 +137,7 @@ from (
     	'09:30:00' <= time and time <= '16:00:00'
     group by symbol, date
     ) as t;
---
+-- 10 m 1 s
 
 
 
@@ -155,7 +155,7 @@ from (
     	having sum(bidsiz) > 0
     order by date desc, symbol
     ) as t;
---
+-- 2 m 53 s
 
 
 

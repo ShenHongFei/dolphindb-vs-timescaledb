@@ -11,10 +11,7 @@ pkill dolphindb
 
 
 # 查看空间占用
-du -sh /data/readings
+du -sh /data/devices/db
 
 du -sh /data/TAQ/db
-
-
-
 

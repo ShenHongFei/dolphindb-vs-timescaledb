@@ -1,4 +1,4 @@
-// --------------------- 创建分区方案
+创建分区方案
 FP_TAQ = '/data/TAQ/'
 FP_SAMPLE_TB = FP_TAQ + 'csv/TAQ20070801.csv'
 FP_DB = FP_TAQ + 'db/'
@@ -107,10 +107,10 @@ timer
 select top 1000 *
 from taq
 where
-	symbol = `IBM,
+	symbol = 'IBM',
 	date = 2007.08.03,
 	time >= 09:30:00
-// 0.9 s
+// 383 ms
 
 
 // 按 [多个股票代码、日期，时间范围、报价范围] 过滤，查询 [股票代码、时间、买入价、卖出价]
@@ -123,7 +123,7 @@ where
 	time between 09:30:00 : 09:30:59, 
 	bid > 0, 
 	ofr > bid
-// ~0.28
+// 357 ms
 
 
 // 按 [股票代码、日期] 过滤，按 [卖出与买入价格差] 降序 排序
@@ -132,9 +132,9 @@ select *
 from taq
 where
 	date = 2007.08.06, 
-	symbol = `EBAY
+	symbol = 'EBAY'
 order by (ofr - bid) as spread desc
-// 245 ms
+// 402 ms
 
 
 // 按 [日期、时间范围、卖出买入价格条件、股票代码] 过滤，查询 (各个股票 每分钟) [平均变化幅度]
@@ -147,7 +147,7 @@ where
 	bid > 0,
 	ofr > bid
 group by symbol, minute(time) as minute
-// 12.8 s
+// 16.8 s
 
 
 // 计算 某天 (每个股票 每分钟) 最大卖出与最小买入价之差
@@ -159,7 +159,7 @@ where
 	bid > 0, 
 	ofr > bid
 group by symbol, minute(time) as minute
-// 8.6 s
+// 8.4 s
 
 
 // 按 [股票代码、日期段、时间段] 过滤, 查询 (每天，时间段内每分钟) 均价
@@ -167,11 +167,11 @@ timer
 select avg(ofr + bid) / 2.0 as avg_price
 from taq 
 where 
-	symbol = `IBM, 
-	date between 2007.08.01 : 2007.08.07
+	symbol = 'IBM', 
+	date between 2007.08.01 : 2007.08.07,
 	time between 09:30:00 : 16:00:00
 group by date, minute(time) as minute
-// 1.7 s
+// 355 ms
 
 
 // 按 [日期段、时间段] 过滤, 查询 (每股票，每天) 均价
@@ -182,7 +182,7 @@ where
 	date between 2007.08.05 : 2007.08.07,
 	time between 09:30:00 : 16:00:00
 group by symbol, date
-//  s
+// 16.7 s
 
 
 // 计算 某个日期段 有成交记录的 (每天, 每股票) 加权均价，并按 (日期，股票代码) 排序
@@ -193,188 +193,7 @@ where date between 2007.08.05 : 2007.08.06
 group by date, symbol
 	having sum(bidsiz) > 0
 order by date desc, symbol
-// 41s
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// 4.3 s
 
 
 

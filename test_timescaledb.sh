@@ -71,23 +71,24 @@ tail -f /var/log/postgresql/postgresql-10-main.log
 # 导入 devices
 timescaledb-parallel-copy \
     --workers 12 \
-    --reporting-period 1s \
+    --reporting-period 5s \
     --copy-options "CSV" \
     --connection "host=localhost user=postgres password=postgres dbname=test sslmode=disable" \
     --db-name test \
     --table device_info \
-    --file /data/devices/devices_big_device_info.csv 
+    --file /data/devices/csv/devices_big_device_info.csv 
  
 # 导入 readings
 timescaledb-parallel-copy \
     --workers 12 \
-    --reporting-period 1s \
+    --reporting-period 5s \
     --copy-options "CSV" \
     --connection "host=localhost user=postgres password=postgres dbname=test sslmode=disable" \
     --db-name test \
-    --table device_info \
-    --file /data/devices/devices_big_readings.csv
-
+    --table readings \
+    --batch-size 10000 \
+    --file /data/devices/csv/devices_big_readings.csv
+# 8 min 17 s
 
 
 # 导出数据并计时
@@ -127,6 +128,15 @@ tail -n +2 /data/TAQ/csv/TAQ20070806.csv | timescaledb-parallel-copy --db-name t
 
 tail -n +2 /data/TAQ/csv/TAQ20070807.csv | timescaledb-parallel-copy --db-name test --table taq --copy-options "CSV" --workers 3 --reporting-period 1s --connection "host=localhost user=postgres password=postgres dbname=test sslmode=disable" --batch-size 200000
 
+
+tail -n +2 $f | timescaledb-parallel-copy \
+    --workers 4 \
+    --reporting-period 5s \
+    --copy-options "CSV" \
+    --connection "host=localhost user=postgres password=postgres dbname=test sslmode=disable" \
+    --db-name test \
+    --table taq \
+    --batch-size 15000
 
 
 # at 17h14m38s, row rate 0.000000/sec (period), row rate 4813.130307/sec (overall), 2.987895E+08 total rows

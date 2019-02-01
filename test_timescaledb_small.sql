@@ -6,13 +6,23 @@
 CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
 
 drop table if exists device_info;
+
+create type BatteryStatus as enum ('discharging', 'charging');
+create type ApiVersion as enum ('19', '21', '22', '23');
+create type Manufacturer as enum ('iobeam');
+create type Model as enum ('focus', 'mustang', 'pinto');
+create type OSName as enum ('4.4.4', '5.0.0', '5.1.0', '6.0.1');
+
+
 create table device_info (
     device_id       text,
-    api_version     text,
-    manufacturer    text,
-    model           text,
-    os_name         text
+    api_version     ApiVersion,
+    manufacturer    Manufacturer,
+    model           Model,
+    os_name         OSName
 );
+
+
 
 drop table if exists readings;
 create table readings (
@@ -20,8 +30,8 @@ create table readings (
     
     device_id           text,
     
-    battery_level       double precision,
-    battery_status      text,
+    battery_level       integer,
+    battery_status      BatteryStatus,
     battery_temperature double precision,
     
     bssid               text,
@@ -33,7 +43,7 @@ create table readings (
     mem_free            double precision,
     mem_used            double precision,
     
-    rssi                double precision,
+    rssi                integer,
     ssid                text
 );
 
@@ -52,219 +62,121 @@ select pg_size_pretty(pg_database_size('test'));
 
 -------------------- 建立索引 
 create index on readings (time desc);
--- 24 s 305 ms
+-- 26 s 547 ms
 
 create index on readings (device_id, time desc);
--- 1 m 19 s
+-- 1 m 25 s
 
 create index on readings (ssid);
 -- 39 s
 
 
 
---------------------- 查询性能测试
--- 根据设备 ID 过滤
-select count(*) from readings where device_id = 'demo000100';
--- 17 ms
-
--- 根据时间过滤
-select count(*) from readings where "time" <= '2016-11-16 21:00:00';
--- 1 s 224 ms
-
-select count(*) from readings where "time" >= '2016-11-16 21:00:00';
--- 1 s 768 ms
-
-
--- 根据整型和时间过滤
-select count(*) from readings where "time" <= '2016-11-16 21:00:00' and battery_level >= 90;
--- 997 ms
-
-
--- 根据整型、浮点型和时间过滤
-select count(*) from readings where "time" <= '2016-11-17 21:00:00' and battery_level >= 90 and cpu_avg_1min < 10.1;
--- 1 s 744 ms
-
-
--- 按设备连接的 SSID 分组（单列）
-select avg(battery_level) from readings group by ssid;
--- 6 s 843 ms
-
-
--- 按设备连接的 SSID 分组（多列）
-select avg(battery_level), min(battery_level) from readings group by ssid;
--- 7 s 134 ms
-
-
--- 按小时分组（单列）
-select
-    time_bucket('1 hour', time) one_hour,
-    avg(cpu_avg_1min)
-from readings
-where '2016-11-16 21:00:00' <= time and time <= '2016-11-17 08:00:00'
-group by one_hour;
--- 1 s 111 ms
-
-
--- 按小时分组（多列）
-select
-    time_bucket('1 hour', time) one_hour,
-    avg(cpu_avg_1min),
-    max(cpu_avg_1min)
-from readings
-where '2016-11-16 21:00:00' <= time and time <= '2016-11-17 08:00:00'
-group by one_hour;
--- 1 s 167 ms
-
-
--- 按设备 ID、小时分组（单列）
-select
-    time_bucket('1 hour', time) one_hour,
-    avg(cpu_avg_1min)
-from readings
-where '2016-11-16 21:00:00' <= time and time <= '2016-11-17 08:00:00'
-group by one_hour, device_id;
--- 1 s 244 ms
-
-
--- 按设备 ID、小时分组（多列）
-select
-    time_bucket('1 hour', time) one_hour,
-    avg(cpu_avg_1min),
-    max(cpu_avg_1min)
-from readings
-where '2016-11-16 21:00:00' <= time and time <= '2016-11-17 08:00:00'
-group by one_hour, device_id;
--- 1 s 325 ms
-
-
--- 根据时间过滤 + 按设备 ID、小时分组
-select
-    device_id,
-    time_bucket('1 hour', time) one_hour,
-    avg(cpu_avg_1min),
-    max(cpu_avg_1min)
-from readings
-where '2016-11-16 21:00:00' <= time and time <= '2016-11-17 08:00:00'
-group by device_id, one_hour;
--- 1 s 270 ms
-
-
--- 排序
+--------------------- 简单查询及内置函数计算
+-- 按设备 ID 查询记录数
 select count(*)
 from readings
-group by battery_level
-order by battery_level asc;
--- 4 s 943 ms
+where device_id = 'demo000101';
+-- 56 ms
 
 
-
---------------------- 内置函数计算性能测试
--- 计数（count）
-select count(battery_level) from readings;
--- 2 s 583 ms
-
-
--- 归一（distinct）
-select distinct(battery_level) from readings;
--- 4 s 219 ms
-
-
--- 平均值（avg）
-select avg(battery_level) from readings;
--- 2 s 912 ms
-
-
--- 标准差（stddev）
-select stddev(battery_level) from readings;
--- 2 s 875 ms
-
-
--- 求和（sum）
-select sum(battery_level) from readings;
--- 2 s 591 ms
-
-
--- 最大值（max）
-select max(battery_level) from readings;
--- 2 s 659 ms
-
-
-
--- 滑动平均值（moving_average）
-select count(r.avg)
+-- 查找某时间段内低电量的未充电设备，显示其 ID、电量
+select count(*)
 from (
-    select avg(battery_level) over (order by time rows between 99 preceding and current row)
+    select
+        device_id,
+        min(battery_level)
     from readings
-) as r;
+    where
+        '2016-11-17 21:00:00' <= time and time < '2016-11-18 09:00:00' and
+        battery_level <= 10 and
+        battery_status = 'discharging'
+    group by device_id
+    ) t;
+-- 547 ms
+
+
+-- 计算某时间段内高负载高电量设备的内存大小
+select count(*)
+from (
+    select
+        date_trunc('hour', time) one_hour,
+        device_id,
+        max(mem_free + mem_used) as mem_all
+    from readings
+    where
+        time <= '2016-11-18 21:00:00' and
+        battery_level >= 90 and
+        cpu_avg_1min > 90
+    group by one_hour, device_id
+) t;
+-- 2 s 173 ms
+
+
+-- 统计连接不同网络的设备的平均电量和最大、最小电量，并按平均电量降序排列
+select count(*)
+from (
+    select
+        ssid,
+        max(battery_level) max_battery,
+        avg(battery_level) avg_battery,
+        min(battery_level) min_battery
+    from readings
+    group by ssid
+    order by avg_battery desc
+) t;
+-- 6 s 412 ms
+
+
+-- 查找所有设备平均负载最高的时段，并按照负载降序排列、时间升序排列
+select count(*)
+from (
+    select
+        time_bucket('1 hour', time) as one_hour,
+        floor(avg(cpu_avg_15min)) as load
+    from readings
+    where '2016-11-16 00:00:00' <= time and time <= '2016-11-18 00:00:00'
+    group by one_hour
+    order by load desc, one_hour asc
+) t;
+-- 3 s 889 ms
+
+
+
+-- 查找各个时间段内某些设备的总负载，并将时段按总负载降序排列
+select count(*)
+from (
+    select
+        time_bucket('1 hour', time) as one_hour,
+        sum(cpu_avg_15min) sum_load
+    from readings
+    where
+        '2016-11-15 12:00:00' <= time and time <= '2016-11-16 12:00:00' and
+        device_id in ('demo000001','demo000010','demo000100','demo001000')
+    group by one_hour
+    order by sum_load desc
+) t;
+-- 19 ms
+
+
+
+-- 设备电量滑动平均值（moving_average）
+-- select count(*)
+-- from (
+--     select device_id,
+--         time_bucket('1 hour',time) as one_hour,
+--         avg(battery_level) over (order by time rows between 99 preceding and current row)
+--     from readings
+--     group by device_id, one_hour
+-- ) t;
 -- 28 s (n = 10)
 -- 2 m 54 s (n = 100)
 -- O(n^2) 复杂度
 
 
--- 向下取整
-select count(*)
-from (
-    select floor(battery_temperature)
-    from readings
-    ) t;
--- 2 s 267 ms
 
 
--- 浮点相加
-select count(*)
-from (
-     select (cpu_avg_1min + cpu_avg_5min + cpu_avg_15min) sum_cpu
-     from readings
-    ) as t;
--- 2 s 254 ms
-
-
-
--- 浮点相乘
-select count(*)
-from (
-     select (cpu_avg_1min * cpu_avg_5min * cpu_avg_15min) mul_cpu
-     from readings
-    ) as t;
--- 2 s 268 ms
-
-
--- 逻辑与
-select count(*)
-from readings
-where battery_temperature > 90.0 and battery_level < 40 and mem_free > 400000000;
--- 2 s 945 ms
-
-
--- 求对数
-select count(*)
-from (
-    select log(mem_free)
-    from readings
-    ) t;
--- 2 s 273 ms
-
-
---------------------- 表连接性能测试
--- 等值连接
-select count(device_info)
-from readings join device_info on readings.device_id = device_info.device_id;
--- 5 s 492 ms
-
-
--- 左连接
-select count(device_info)
-from readings left join device_info on readings.device_id = device_info.device_id;
--- 5 s 479 ms
-
-
-select count(device_info)
-from readings right join device_info on readings.device_id = device_info.device_id;
--- 5 s 569 ms
-
-
-
---------------------- 复杂查询性能测试
+--------------------- 经典查询性能测试
 -- 查询充电设备的最近 20 条电池温度记录
 select
     time,
@@ -272,7 +184,8 @@ select
     battery_temperature
 from readings
 where battery_status = 'charging'
-order by time desc limit 20;
+order by time desc
+limit 20;
 -- 4 ms
 
 
@@ -286,7 +199,7 @@ from readings join device_info on readings.device_id = device_info.device_id
 where battery_level < 33 and battery_status = 'discharging'
 order by cpu_avg_1min desc, time desc
 limit 5;
--- 10 s 58 ms
+-- 8 s 540 ms
 
 
 -- 某两个型号的设备每小时最低电量的前 20 条数据
@@ -302,197 +215,20 @@ where device_id in (
 group by "hour"
 order by "hour" asc
 limit 20;
--- 7 s 996 ms
+-- 8 s 47 ms
 
 
 
+--------------------- 表连接性能测试
+-- 等值连接
+select count(device_info)
+from readings join device_info on readings.device_id = device_info.device_id;
+-- 5 s 492 ms
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+-- 左连接
+select count(device_info)
+from readings left join device_info on readings.device_id = device_info.device_id;
+-- 5 s 479 ms
 
 
