@@ -4,7 +4,7 @@
 ### TimescaleDB
 TimescaleDB 是目前市面上唯一的开源且完全支持 SQL 的时序数据库。它在 PostgreSQL 数据库的基础上进行开发，本质上是一个 PostgreSQL 的插件。  
 TimescaleDB 完全支持 SQL 且拥有 PostgreSQL 的丰富生态、并针对时间序列数据的快速插入和复杂查询进行了优化，支持自动分片，支持时间空间维度自动分区，支持多个 SERVER、多个 CHUNK 的并行查询，内部写优化（批量提交、内存索引、事务支持、数据倒灌）。  
-然而，目前 TimerscaleDB 仍不支持水平扩展（集群），即不能动态增加新的数据结点以写入数据（Write clustering for multi-node Timescale deployments is under active development.   [https://github.com/timescale/timescaledb/issues/9](https://github.com/timescale/timescaledb/issues/9)），只支持通过 PostgreSQL 的流复制（streaming repliaction）实现的只读集群（read-only clustering）。  
+然而，目前 TimerscaleDB 仍不支持水平扩展（集群），即不能动态增加新的数据结点以写入数据（Write clustering for multi-node Timescale deployments is under active development. <https://github.com/timescale/timescaledb/issues/9>），只支持通过 PostgreSQL 的流复制（streaming repliaction）实现的只读集群（read-only clustering）。
 
 ### DolphinDB
 DolphinDB 是一款分析型的分布式时序数据库，内置处理流式数据处理引擎，具有内置的并行和分布式计算的功能，并提供分布式文件系统，支持集群扩展。  
@@ -15,15 +15,15 @@ DolphinDB 以 C++ 编写，响应速度极快。提供类似于 Python 的脚本
 ### 4.2 GB 设备传感器记录小数据集（CSV 格式，3 千万条）
 
 我们从 TimescaleDB 官方给出的样例数据集中选择了 `devices_big` 作为小数据集来测试，共 `3 × 10^7` 条数据，`4.2 GB` CSV，包含一张设备信息表和一张设备传感器信息记录表。  
-数据集包含 3000 个设备在 10000 个时间间隔（2016.11.15 - 2016.11.19）上的 `传感器时间`, `设备 ID`, `电池`, `内存`, `CPU` 等时序统计信息  
+数据集包含 3000 个设备在 10000 个时间间隔（2016.11.15 - 2016.11.19）上的 `传感器时间`, `设备 ID`, `电池`, `内存`, `CPU` 等时序统计信息。  
 来源：<https://docs.timescale.com/v1.1/tutorials/other-sample-datasets>
 下载地址：<https://timescaledata.blob.core.windows.net/datasets/devices_big.tar.gz>
 
-### 270 GB 股票交易大数据集（65 亿条，CSV 格式，23 个 CSV）
+### 270 GB 股票交易大数据集（CSV 格式，23 个 CSV，65 亿条）
 
 我们从纽约证券交易所（NYSE）提供的 2007.08.01 - 2007.08.31 一个月的股市交易日历史数据作为大数据集进行测试。  
 数据集中共有 65 亿（6,561,693,704）条交易记录，一个 CSV 中保存一个交易日的记录。未压缩的 23 个 CSV 文件共计 270 GB。  
-数据集包含 8000 多支股票在一个月内的 `交易时间`, `股票代码`, `买入价`, `卖出价`, `买入量`, `卖出量` 等时序交易信息  
+数据集包含 8000 多支股票在一个月内的 `交易时间`, `股票代码`, `买入价`, `卖出价`, `买入量`, `卖出量` 等时序交易信息。  
 来源：<https://www.nyse.com/market-data/historical>
 
 ## 三、测试内容
@@ -32,7 +32,7 @@ DolphinDB 以 C++ 编写，响应速度极快。提供类似于 Python 的脚本
 
 1. 数据导入导出
 2. 磁盘空间占用
-3. 经常用查询
+3. 常用查询
 4. 表连接
 
 ## 四、结论
@@ -40,9 +40,9 @@ DolphinDB 以 C++ 编写，响应速度极快。提供类似于 Python 的脚本
 ### 导入性能
 
 |            数据集             |        DolphinDB         |          TimescaleDB          | 导入性能 （DolphinDB / TimescaleDB） |    Δ    |
-| :---------------------------: | :----------------------: | :---------------------------: | :----------------------------------: | :-----: |
-| 4.2 GB 设备传感器记录小数据集 | 1,500,000 条/秒    20 秒 | 60,300 条/秒     8 分钟 17 秒 |                25 倍                 | 8 分钟  |
-|    270 GB 股票交易大数据集    | 2,900,000 条/秒  38 分钟 | 20,000 条/秒          92 小时 |                145 倍                | 91 小时 |
+| :---------------------------: | :-------------------------: | :---------------------------: | :----------------------------------: | :-----: |
+| 4.2 GB 设备传感器记录小数据集 |  1,500,000 条/秒, 共 20 秒  | 60,300 条/秒, 共 8 分钟 17 秒 |                25 倍                 | 8 分钟  |
+|    270 GB 股票交易大数据集    | 2,900,000 条/秒, 共 38 分钟 |   20,000 条/秒, 共 92 小时    |                145 倍                | 91 小时 |
 
 todo: 分析事务对导入性能的影响
 
@@ -112,7 +112,9 @@ PostgreSQL 10.6 (Ubuntu 10.6-1.pgdg16.04+1) on x86_64-pc-linux-gnu
 
 Timescale v1.1.1
 
-#### PostgreSQL 配置（参考 https://pgtune.leopard.in.ua/ ）
+#### PostgreSQL 配置
+
+参考了 https://pgtune.leopard.in.ua/ , <https://wiki.postgresql.org/wiki/Tuning_Your_PostgreSQL_Server>
 
 ```ini
 listen_addresses = '*'
@@ -163,10 +165,10 @@ localExecutors=11
 | Column       | DolphinDB | TimescaleDB |
 | ------------ | --------- | ----------- |
 | device_id    | SYMBOL    | text        |
-| api_version  | STRING    | text        |
-| manufacturer | STRING    | text        |
-| model        | STRING    | text        |
-| os_name      | STRING    | text        |
+| api_version  | SYMBOL    | enum        |
+| manufacturer | SYMBOL    | enum        |
+| model        | SYMBOL    | enum        |
+| os_name      | SYMBOL    | enum        |
 
 ### readings 表
 
@@ -176,9 +178,9 @@ localExecutors=11
 | time                | DATETIME  | timestamp with time zone not null |
 | device_id           | SYMBOL    | text (有索引)                     |
 | battery_level       | DOUBLE    | double precision                  |
-| battery_status      | STRING    | text                              |
+| battery_status      | SYMBOL    | enum                              |
 | battery_temperature | DOUBLE    | double precision                  |
-| bssid               | STRING    | text                              |
+| bssid               | SYMBOL    | text                              |
 | cpu_avg_1min        | DOUBLE    | double precision                  |
 | cpu_avg_5min        | DOUBLE    | double precision                  |
 | cpu_avg_15min       | DOUBLE    | double precision                  |
@@ -205,7 +207,7 @@ localExecutors=11
 
 | Column | DolphinDB | TimescaleDB            |
 | ------ | --------- | ---------------------- |
-| symbol | SYMBOL    | Symbol (枚举类型)      |
+| symbol | SYMBOL    | enum                   |
 | date   | DATE      | date                   |
 | time   | SECOND    | time without time zone |
 | bid    | DOUBLE    | double precision       |
@@ -214,9 +216,9 @@ localExecutors=11
 | ofrsiz | INT       | integer                |
 | mode   | INT       | integer                |
 | ex     | CHAR      | character              |
-| mmid   | SYMBOL    | Mmid (枚举类型)        |
+| mmid   | SYMBOL    | enum                   |
 
-我们按 `date(日期)`, `symbol(股票代码)` 进行分区，每天根据 symbol 分为 100 个分区，每个分区大概 120 MB 左右。
+我们按 `date(日期)`, `symbol(股票代码)` 进行分区，每天再根据 symbol 分为 100 个分区，每个分区大概 120 MB 左右。
 
 -   DolphinDB
 
@@ -292,9 +294,9 @@ timer {
 ##### 导入性能
 
 |            数据集             |        DolphinDB         |          TimescaleDB          | 导入性能 （DolphinDB / TimescaleDB） |    Δ    |
-| :---------------------------: | :----------------------: | :---------------------------: | :----------------------------------: | :-----: |
-| 4.2 GB 设备传感器记录小数据集 | 1,500,000 条/秒    20 秒 | 60,300 条/秒    8 分钟 17 秒  |                25 倍                 | 8 分钟  |
-|    270 GB 股票交易大数据集    | 2,900,000 条/秒  38 分钟 | 20,000 条/秒          92 小时 |                145 倍                | 91 小时 |
+| :---------------------------: | :-------------------------: | :---------------------------: | :----------------------------------: | :-----: |
+| 4.2 GB 设备传感器记录小数据集 |  1,500,000 条/秒, 共 20 秒  | 60,300 条/秒, 共 8 分钟 17 秒 |                25 倍                 | 8 分钟  |
+|    270 GB 股票交易大数据集    | 2,900,000 条/秒, 共 38 分钟 |   20,000 条/秒, 共 92 小时    |                145 倍                | 91 小时 |
 
 
 #### 导出数据为 CSV 文件
