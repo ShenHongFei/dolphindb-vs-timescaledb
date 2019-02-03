@@ -40,15 +40,15 @@ create table readings (
     cpu_avg_5min        double precision,
     cpu_avg_15min       double precision,
     
-    mem_free            double precision,
-    mem_used            double precision,
+    mem_free            bigint,
+    mem_used            bigint,
     
-    rssi                integer,
+    rssi                smallint,
     ssid                text
 );
 
 
-SELECT create_hypertable('readings', 'time', chunk_time_interval => interval '1 day');
+SELECT create_hypertable('readings', 'time', 'device_id', 10, chunk_time_interval => interval '1 day');
 
 
 --------------------- 导入数据（见 test_timescaledb.sh）
@@ -58,17 +58,21 @@ SELECT create_hypertable('readings', 'time', chunk_time_interval => interval '1 
 -- head -n 50 /data/devices/devices_big_readings.csv
 
 -- 查看数据库大小
-select pg_size_pretty(pg_database_size('test'));
+select pg_size_pretty(pg_database_size('test3'));
+
+select count(*) from readings;
+
+--------------------- 导出数据（见 test_timescaledb.sh）
 
 -------------------- 建立索引 
 create index on readings (time desc);
--- 26 s 547 ms
+-- 29 s
 
 create index on readings (device_id, time desc);
--- 1 m 25 s
+-- 1 m 43 s
 
 create index on readings (ssid);
--- 39 s
+-- 48 s
 
 
 
@@ -77,7 +81,7 @@ create index on readings (ssid);
 select count(*)
 from readings
 where device_id = 'demo000101';
--- 56 ms
+-- 18 ms
 
 
 -- 查找某时间段内低电量的未充电设备，显示其 ID、电量
@@ -93,7 +97,7 @@ from (
         battery_status = 'discharging'
     group by device_id
     ) t;
--- 547 ms
+-- 574 ms
 
 
 -- 计算某时间段内高负载高电量设备的内存大小
@@ -110,7 +114,7 @@ from (
         cpu_avg_1min > 90
     group by one_hour, device_id
 ) t;
--- 2 s 173 ms
+-- 2 s 296 ms
 
 
 -- 统计连接不同网络的设备的平均电量和最大、最小电量，并按平均电量降序排列
@@ -139,7 +143,7 @@ from (
     group by one_hour
     order by load desc, one_hour asc
 ) t;
--- 3 s 889 ms
+-- 3 s 939 ms
 
 
 
@@ -156,7 +160,7 @@ from (
     group by one_hour
     order by sum_load desc
 ) t;
--- 19 ms
+-- 20 ms
 
 
 
@@ -186,7 +190,7 @@ from readings
 where battery_status = 'charging'
 order by time desc
 limit 20;
--- 4 ms
+-- 9 ms
 
 
 -- 未在充电的、电量小于 33% 的、平均 1 分钟内最高负载的 5 个设备
@@ -199,7 +203,7 @@ from readings join device_info on readings.device_id = device_info.device_id
 where battery_level < 33 and battery_status = 'discharging'
 order by cpu_avg_1min desc, time desc
 limit 5;
--- 8 s 540 ms
+-- 13 s 747 ms
 
 
 -- 某两个型号的设备每小时最低电量的前 20 条数据
@@ -215,7 +219,7 @@ where device_id in (
 group by "hour"
 order by "hour" asc
 limit 20;
--- 8 s 47 ms
+-- 8 s 55 ms
 
 
 
@@ -223,12 +227,12 @@ limit 20;
 -- 等值连接
 select count(device_info)
 from readings join device_info on readings.device_id = device_info.device_id;
--- 5 s 492 ms
+-- 5 s 534 ms
 
 
 -- 左连接
 select count(device_info)
 from readings left join device_info on readings.device_id = device_info.device_id;
--- 5 s 479 ms
+-- 5 s 519 ms
 
 

@@ -74,7 +74,7 @@ timescaledb-parallel-copy \
     --reporting-period 5s \
     --copy-options "CSV" \
     --connection "host=localhost user=postgres password=postgres dbname=test sslmode=disable" \
-    --db-name test \
+    --db-name test3 \
     --table device_info \
     --file /data/devices/csv/devices_big_device_info.csv 
  
@@ -84,15 +84,18 @@ timescaledb-parallel-copy \
     --reporting-period 5s \
     --copy-options "CSV" \
     --connection "host=localhost user=postgres password=postgres dbname=test sslmode=disable" \
-    --db-name test \
+    --db-name test3 \
     --table readings \
     --batch-size 10000 \
     --file /data/devices/csv/devices_big_readings.csv
-# 8 min 17 s
+# 6m 30s
 
 
 # 导出数据并计时
-time psql -d test -c "\COPY (SELECT * FROM readings) TO /data/devices_dump.csv DELIMITER ',' CSV"
+chown postgres:postgres /data/devices
+su postgres
+cd ~
+time psql -d test -c "\COPY (SELECT * FROM readings) TO /data/devices/devices_dump.csv DELIMITER ',' CSV"
 
 
 # 占用空间

@@ -64,6 +64,7 @@ dropDatabase(FP_DB)
 // ----------- 关闭 DolphinDB，清空页面、磁盘、目录项和 inode 缓存后重新启动 DolphinDB 开始测试
 
 // ----------------- 加载 readings 表
+// 加载磁盘分区表元数据
 timer readings = loadTable(FP_DB, `readings)
 // 106 ms
 
@@ -71,8 +72,8 @@ timer readings = loadTable(FP_DB, `readings)
 // 加载为内存表
 timer readings = loadTable(FP_DB, `readings, , true)
 // 13.8 s
+readings = loadTable(FP_DB, `readings, 2016.11.15T00:00:00 + 86400 * 0..4, true)
 
-// readings = loadTable(FP_DB, `readings, 2016.11.15T00:00:00 + 86400 * 0..4, true)
 
 // 查看 schema
 schema(device_info)
