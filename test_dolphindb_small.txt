@@ -1,79 +1,100 @@
-创建分区方案
-// data path
+REPL
+// ----------------- 路径配置
 FP_DEVICES = '/data/devices/'
 FP_INFO 	= FP_DEVICES + 'csv/devices_big_device_info.csv'
 FP_READINGS = FP_DEVICES + 'csv/devices_big_readings.csv'
 
 FP_DB = FP_DEVICES + 'db/'
 
-// 创建两张表的 schema
-schema_info  	= extractTextSchema(FP_INFO)
-schema_readings = extractTextSchema(FP_READINGS)
+// ----------------- 创建两张表的 schema
 COLS_INFO 		= `device_id`api_version`manufacturer`model`os_name
 COLS_READINGS 	= `time`device_id`battery_level`battery_status`battery_temperature`bssid`cpu_avg_1min`cpu_avg_5min`cpu_avg_15min`mem_free`mem_used`rssi`ssid
 
+TYPES_INFO		= `SYMBOL`SYMBOL`SYMBOL`SYMBOL`SYMBOL
+TYPES_READINGS  = `DATETIME`SYMBOL`INT`SYMBOL`DOUBLE`SYMBOL`DOUBLE`DOUBLE`DOUBLE`LONG`LONG`SHORT`SYMBOL
 
-schema_info 	= table(COLS_INFO, schema_info.type)
-schema_readings = table(COLS_READINGS, schema_readings.type)
+schema_info 	= table(COLS_INFO, TYPES_INFO)
+schema_readings = table(COLS_READINGS, TYPES_READINGS)
 
+// ----------------- 创建分区数据库并定义分区方式
+TIME_RANGE 	= 2016.11.15T00:00:00 + 86400 * 0..4
+ID_RANGE 	= ('demo' + lpad((0..10 * 300)$STRING, 6, "0"))$SYMBOL
 
-// 创建分区数据库并定义分区方式
-db = database(FP_DB, RANGE, 2016.11.15T00:00:00 + 86400 * 0..4)
+time_schema   = database('', RANGE, TIME_RANGE)
+id_schema     = database('', RANGE, ID_RANGE)
+
+db = database(FP_DB, COMPO, [time_schema, id_schema])
 
 
 // ----------------- 从 CSV 导入 device_info 表的数据到 device_info 内存表
 device_info = loadText(FP_INFO, , schema_info)
 
-// 导出不同的值作为 TimescaleDB 枚举类型的属性
+
+// ----------------- 导出不同的值作为 TimescaleDB 枚举类型的属性
 exec distinct api_version from device_info
 exec distinct manufacturer from device_info
 exec distinct model from device_info
 exec distinct os_name from device_info
 
-exec distinct bssid from readings
-exec distinct ssid from readings
+
 
 // ----------------- 从 CSV 导入 readings 表的数据到 readings 数据库并完成数据分区操作
-timer readings = loadTextEx(db, `readings, `time, FP_READINGS, , schema_readings)
-// 20 s    1.2 GB
+timer readings = loadTextEx(db, `readings, `time`device_id, FP_READINGS, , schema_readings)
+// 32 s    1.2 GB
 
 
-// 关闭数据库
+
+// ----------------- 导出数据
+timer saveText((select * from readings), '/data/devices/readings_dump_dolphindb.csv')
+// Time elapsed: 6.6 s   ，该语句的执行时间未包括从缓存写入硬盘的时间，因为计时结束后系统监控中显示仍然有 200 MB/s 的速率正在写入磁盘。
+// 从语句开始执行到数据完全写入硬盘（系统监控中无磁盘写入）的时间为 29 s
+
+
+// ----------------- 关闭数据库
 close(db)
 readings = NULL
 
 
+// ----------------- 删除数据库
+dropDatabase(FP_DB)
 
-// 加载 readings 表
+
+
+
+// ----------- 关闭 DolphinDB，清空页面、磁盘、目录项和 inode 缓存后重新启动 DolphinDB 开始测试
+
+// ----------------- 加载 readings 表
 timer readings = loadTable(FP_DB, `readings)
-// 30 ms
+// 106 ms
 
 
-readings = loadTable(FP_DB, `readings, , true)
-readings = loadTable(FP_DB, `readings, 2016.11.15T00:00:00 + 86400 * 0..4, true)
+// 加载为内存表
+timer readings = loadTable(FP_DB, `readings, , true)
+// 13.8 s
 
-
-timer select count(*) from readings
-// 0.604 ms
-
+// readings = loadTable(FP_DB, `readings, 2016.11.15T00:00:00 + 86400 * 0..4, true)
 
 // 查看 schema
 schema(device_info)
 schema(readings)
 
 
-// ----------------- 导出数据
-timer saveText((select * from readings), '/data/devices/readings_dump.csv')
-// 17.5 s
 
 
-// --------------------- 简单查询及内置函数计算
+
+// --------------------- 常用查询性能测试
+
+timer select count(*) from readings
+// 3 ms
+
+
 // 按设备 ID 查询记录数
 timer
 select count(*)
 from readings
 where device_id = 'demo000101'
-// 160 ms
+// 27 ms
+// 5 ms
 
 
 // 查找某时间段内低电量的未充电设备，显示其 ID、最低电量
@@ -85,7 +106,8 @@ where
     battery_level <= 10,
     battery_status = 'discharging'
 group by device_id
-// 266 ms
+// 453 ms (读取了硬盘数据)
+// 11 ms
 
 
 // 计算某时间段内高负载高电量设备的内存大小
@@ -99,7 +121,8 @@ where
     battery_level >= 90,
     cpu_avg_1min > 90
 group by hour(time), device_id
-// 1306 ms
+// 4600 ms (读取了硬盘数据)
+// 60 ms
 
 
 // 统计连接不同网络的设备的平均电量和最大、最小电量，并按平均电量降序排列
@@ -111,7 +134,8 @@ select
 from readings
 group by ssid
 order by avg_battery desc
-// 328 ms
+// 800 ms
+// 63 ms
 
 
 // 查找所有设备平均负载最高的时段，并按照负载降序排列、时间升序排列
@@ -121,8 +145,8 @@ from readings
 where time between 2016.11.16 00:00:00 : 2016.11.18 00:00:00
 group by hour(time) as hour
 order by load desc, hour asc;
-// 847 ms
-
+// 1600 ms
+// 36 ms
 
 
 // 计算各个时间段内某些设备的总负载，并将时段按总负载降序排列
@@ -134,36 +158,10 @@ where
     device_id in ['demo000001', 'demo000010', 'demo000100', 'demo001000']
 group by hour(time)
 order by sum_load desc
-// 35 ms
+// 110 ms
+// 6 ms
 
 
-
-// 设备电量滑动平均值（moving_average）
-timer
-select avg(mavg(battery_level, 100))
-from readings
-group by device_id, hour(time)
-// 855 ms
-// 873 ms
-
-
-
-
-// --------------- 表连接性能测试
-timer
-select count(device_info)
-from ej(readings, device_info, `device_id)
-// 254 ms
-
-timer
-select count(device_info)
-from lj(readings, device_info, `device_id)
-// 230 ms
-
-
-
-
-// ----------------- 经典查询性能测试
 // 查询充电设备的最近 20 条电池温度记录
 timer
 select top 20
@@ -173,20 +171,9 @@ select top 20
 from readings
 where battery_status = 'charging'
 order by time desc
-// 385 ms （top 20 没有起到缩小查询范围的作用）
-
-
-// 查询充电设备的所有电池温度记录
-timer
-select
-    time,
-    device_id,
-    battery_temperature
-from readings
-where battery_status = 'charging'
-order by time desc
-// 57 ms （受上条查询的缓存影响）
-
+// 1178 ms (读取了硬盘数据)
+// 45 ms
+// （top 20 没有起到缩小查询范围的作用）
 
 
 // 未在充电的、电量小于 33% 的、平均 1 分钟内最高负载的 5 个设备
@@ -199,8 +186,8 @@ select top 5
 from ej(readings, device_info, `device_id)
 where battery_level < 33, battery_status = 'discharging'
 order by cpu_avg_1min desc, time desc
-// 406 ms 
-
+// 417 ms 
+// 392 ms
 
 
 // 未在充电的、电量小于 33% 的、平均 1 分钟内最高负载的所有设备
@@ -213,8 +200,8 @@ select
 from ej(readings, device_info, `device_id)
 where battery_level < 33, battery_status = 'discharging'
 order by cpu_avg_1min desc, time desc
-// 617 ms
-
+// 602 ms
+// 623 ms
 
 
 // 未在充电的、电量小于 33% 的、平均 1 分钟内最高负载的所有设备
@@ -227,8 +214,8 @@ select top 5
 from ej(readings, device_info, `device_id)
 where battery_level < 33, battery_status = 'discharging'
 order by cpu_avg_1min desc, time desc
-// 388 ms
-
+// 369 ms
+// 367 ms
 
 
 // 某两个型号的设备每小时最低电量的前 20 条数据
@@ -247,7 +234,25 @@ timer {
 
 	battery_levels[0:20]
 }
-// 104 ms
+// 97 ms
+// 78 ms
+
+
+
+// --------------- 表连接性能测试
+timer
+select count(device_info)
+from ej(readings, device_info, `device_id)
+// 159 ms
+// 142 ms
+
+
+timer
+select count(device_info)
+from lj(readings, device_info, `device_id)
+// 144 ms
+// 138 ms
+
 
 
 
