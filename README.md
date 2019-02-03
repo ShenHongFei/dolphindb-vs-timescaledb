@@ -21,7 +21,7 @@ DolphinDB 以 C++ 编写，响应速度极快。提供类似于 Python 的脚本
 
 ### 270 GB 股票交易大数据集（CSV 格式，23 个 CSV，65 亿条）
 
-我们从纽约证券交易所（NYSE）提供的 2007.08.01 - 2007.08.31 一个月的股市交易日历史数据作为大数据集进行测试。  
+我们从纽约证券交易所（NYSE）提供的 2007.08.01 - 2007.08.31 一个月的股市交易日历史数据（level1 of Trade And Quote, TAQ）作为大数据集进行测试。
 数据集中共有 65 亿（6,561,693,704）条交易记录，一个 CSV 中保存一个交易日的记录。未压缩的 23 个 CSV 文件共计 270 GB。  
 数据集包含 8000 多支股票在一个月内的 `交易时间`, `股票代码`, `买入价`, `卖出价`, `买入量`, `卖出量` 等时序交易信息。  
 来源：<https://www.nyse.com/market-data/historical>
@@ -44,6 +44,7 @@ DolphinDB 以 C++ 编写，响应速度极快。提供类似于 Python 的脚本
 | 4.2 GB 设备传感器记录小数据集 |  1,500,000 条/秒, 共 20 秒  | 60,300 条/秒, 共 8 分钟 17 秒 |                25 倍                 | 8 分钟  |
 |    270 GB 股票交易大数据集    | 2,900,000 条/秒, 共 38 分钟 |   20,000 条/秒, 共 92 小时    |                145 倍                | 91 小时 |
 
+解释为什么 timescaledb 这么慢
 
 ### 导出性能（仅小数据集）
 
@@ -55,8 +56,8 @@ DolphinDB 以 C++ 编写，响应速度极快。提供类似于 Python 的脚本
 ### 磁盘空间占用
 
 |            数据集             | DolphinDB | TimescaleDB | 空间利用率 （DolphinDB / TimescaleDB） |   Δ    |
-| :---------------------------: | :-------: | :---------: | :------------------------------------: | :----: |
-| 4.2 GB 设备传感器记录小数据集 |  1.2 GB   |    5 GB     |                  4 倍                  |  4 GB  |
+| :---------------------------: | :-------: | :------------------------: | :------------------------------------: | :----: |
+| 4.2 GB 设备传感器记录小数据集 |  1.2 GB   | 7.1 GB (建立索引后 9.8 GB) |                  6 倍                  |  6 GB  |
 |    270 GB 股票交易大数据集    |   51 GB   |   864 GB    |                 17 倍                  | 813 GB |
 
 ### 常用查询
@@ -113,18 +114,20 @@ Timescale v1.1.1
 
 #### PostgreSQL 配置
 
-参考了 https://pgtune.leopard.in.ua/ , <https://wiki.postgresql.org/wiki/Tuning_Your_PostgreSQL_Server>
+我们根据 TimescaleDB 官方指南推荐的性能调优方法，结合测试机器的实际硬件配置，在 <https://pgtune.leopard.in.ua/> 网站上生成了以下配置文件，
+同时参考了 <https://wiki.postgresql.org/wiki/Tuning_Your_PostgreSQL_Server> 这一官方配置指南手动修改了一些参数。
 
 ```ini
 listen_addresses = '*'
 
+# 使用 timescaledb 需在 PostgresQL 中启用其插件
 shared_preload_libraries = 'timescaledb'
 
 max_connections = 20
 
-shared_buffers = 8GB
-effective_cache_size = 20GB
-work_mem = 128MB
+shared_buffers = 16GB           # 官方推荐值为物理内存的 1/4
+effective_cache_size = 16GB     # 系统以及 PostgresQL 的最大可用缓存
+work_mem = 128MB                # 由于连接数不多，这里设置的比官方默认的值要大
 maintenance_work_mem = 4GB
 
 min_wal_size = 4GB
@@ -132,8 +135,9 @@ max_wal_size = 8GB
 
 checkpoint_completion_target = 0.9
 default_statistics_target = 500
-effective_io_concurrency = 1
+effective_io_concurrency = 1    # 仅使用 1 块 HDD
 
+# 根据 6 核 12 线程的 CPU 设置
 max_worker_processes = 12
 max_parallel_workers_per_gather = 6
 max_parallel_workers = 12
@@ -173,22 +177,28 @@ localExecutors=11
 
 
 | Column              | DolphinDB | TimescaleDB                       |
-| ------------------- | --------- | --------------------------------- |
-| time                | DATETIME  | timestamp with time zone not null |
-| device_id           | SYMBOL    | text (有索引)                     |
-| battery_level       | DOUBLE    | double precision                  |
-| battery_status      | SYMBOL    | enum                              |
-| battery_temperature | DOUBLE    | double precision                  |
-| bssid               | SYMBOL    | text                              |
-| cpu_avg_1min        | DOUBLE    | double precision                  |
-| cpu_avg_5min        | DOUBLE    | double precision                  |
-| cpu_avg_15min       | DOUBLE    | double precision                  |
-| mem_free            | DOUBLE    | double precision                  |
-| mem_used            | DOUBLE    | double precision                  |
-| rssi                | DOUBLE    | double precision                  |
-| ssid                | SYMBOL    | text (有索引)                     |
+| ------------------- | ----------------------- | -------------------------------------------- |
+| time                | DATETIME (分区第一维度) | timestamp with time zone not null (分区维度) |
+| device_id           | SYMBOL (分区第二维度)   | text (有索引)                                |
+| battery_level       | INT                     | integer                                      |
+| battery_status      | SYMBOL                  | enum                                         |
+| battery_temperature | DOUBLE                  | double precision                             |
+| bssid               | SYMBOL                  | text                                         |
+| cpu_avg_1min        | DOUBLE                  | double precision                             |
+| cpu_avg_5min        | DOUBLE                  | double precision                             |
+| cpu_avg_15min       | DOUBLE                  | double precision                             |
+| mem_free            | LONG                    | bigint                                       |
+| mem_used            | LONG                    | bigint                                       |
+| rssi                | SHORT                   | smallint                                     |
+| ssid                | SYMBOL                  | text (有索引)                                |
 
-按天分为 4 个区，分区边界为 `[2016.11.15 00:00:00, 2016.11.16 00:00:00, 2016.11.17 00:00:00, 2016.11.18 00:00:00, 2016.11.19 00:00:00]`
+数据集中 `device_id` 这一字段有 3000 个不同的值，这些值在 readings 表的记录中反复出现，用 text 类型不仅占用大量空间而且查询效率较低，但是在 TimescaleDB 中我们难以对这一字段采用 enum 类型，而 DolphinDB 的 Symbol 类型简单高效地解决了存储空间和查询效率这两大问题。
+
+同样，对于 `bssid` 和 `ssid` 这两个字段表示设备连接的 WiFi 信息，在实际中因为数据的不确定性，虽然有大量的重复值，但并不适合使用 enum 类型。
+
+我们在 DolphinDB 中的分区方案是将 `time` 作为分区的第一个维度，按天分为 4 个区，分区边界为 `[2016.11.15 00:00:00, 2016.11.16 00:00:00, 2016.11.17 00:00:00, 2016.11.18 00:00:00, 2016.11.19 00:00:00]`；再将 `device_id` 作为分区的第二个维度，每天一共分 10 个区，最后每个分区所包含的原始数据大小约为 `100 MB`。
+
+我们尝试了在 TimescaleDB 中将 `device_id` 作为分区的第二个维度，但经测试 90% 查询样例的性能反而不如仅由时间维度进行分区，因此我们选择仅按照时间维度和按天分为 4 个区，该维度和 DolphinDB 的分区方式相同，而 `device_id` 这一维度以建立索引的方式来加快查询速度。
 
 -   DolphinDB
 
@@ -361,235 +371,7 @@ create index on readings (ssid);
 -- 39 s
 
 
--- 按设备 ID 查询记录数
-select count(*)
-from readings
-where device_id = 'demo000101';
--- 56 ms
-select count(*)
-from readings
-where device_id = 'demo000101'
-// 160 ms
-性能：DolphinDB / TimescaleDB ≈ 1/3    Δ ≈ 100 ms
-由于 TimescaleDB 在 device_id 上建立了索引，而 DolphinDB 未建立索引，所以对于 device_id 的搜索有性能上的提升
 
--- 查找某时间段内低电量的未充电设备，显示其 ID、电量
-select count(*)
-from (
-    select
-        device_id,
-        min(battery_level)
-    from readings
-    where
-        '2016-11-17 21:00:00' <= time and time < '2016-11-18 09:00:00' and
-        battery_level <= 10 and
-        battery_status = 'discharging'
-    group by device_id
-    ) t;
--- 547 ms
-select min(battery_level)
-from readings
-where
-	time between 2016.11.17 21:00:00 : 2016.11.18 09:00:00,
-    battery_level <= 10,
-    battery_status = 'discharging'
-group by device_id
-// 266 ms
-性能：DolphinDB / TimescaleDB ≈ 2    Δ ≈ 280 ms
-
-
--- 计算某时间段内高负载高电量设备的内存大小
-select count(*)
-from (
-    select
-        date_trunc('hour', time) one_hour,
-        device_id,
-        max(mem_free + mem_used) as mem_all
-    from readings
-    where
-        time <= '2016-11-18 21:00:00' and
-        battery_level >= 90 and
-        cpu_avg_1min > 90
-    group by one_hour, device_id
-) t;
--- 2 s 173 ms
-select
-	max(date(time)) as date,
-	max(mem_free + mem_used) as mem_all
-from readings
-where
-    time <= 2016.11.18 21:00:00,
-    battery_level >= 90,
-    cpu_avg_1min > 90
-group by hour(time), device_id
-// 1306 ms
-性能：DolphinDB / TimescaleDB ≈ 1.7    Δ ≈ 1 s
-
-
--- 统计连接不同网络的设备的平均电量和最大、最小电量，并按平均电量降序排列
-select count(*)
-from (
-    select
-        ssid,
-        max(battery_level) max_battery,
-        avg(battery_level) avg_battery,
-        min(battery_level) min_battery
-    from readings
-    group by ssid
-    order by avg_battery desc
-) t;
--- 6 s 412 ms
-select
-    max(battery_level) as max_battery,
-    avg(battery_level) as avg_battery,
-    min(battery_level) as min_battery
-from readings
-group by ssid
-order by avg_battery desc
-// 328 ms
-性能：DolphinDB / TimescaleDB ≈ 20    Δ ≈ 6 s
-
-
--- 查找所有设备平均负载最高的时段，并按照负载降序排列、时间升序排列
-select count(*)
-from (
-    select
-        time_bucket('1 hour', time) as one_hour,
-        floor(avg(cpu_avg_15min)) as load
-    from readings
-    where '2016-11-16 00:00:00' <= time and time <= '2016-11-18 00:00:00'
-    group by one_hour
-    order by load desc, one_hour asc
-) t;
--- 3 s 889 ms
-select floor(avg(cpu_avg_15min)) as load
-from readings
-where time between 2016.11.16 00:00:00 : 2016.11.18 00:00:00
-group by hour(time) as hour
-order by load desc, hour asc;
-// 847 ms
-性能：DolphinDB / TimescaleDB ≈ 4.6    Δ ≈ 3 s
-
-
--- 查找各个时间段内某些设备的总负载，并将时段按总负载降序排列
-select count(*)
-from (
-    select
-        time_bucket('1 hour', time) as one_hour,
-        sum(cpu_avg_15min) sum_load
-    from readings
-    where
-        '2016-11-15 12:00:00' <= time and time <= '2016-11-16 12:00:00' and
-        device_id in ('demo000001','demo000010','demo000100','demo001000')
-    group by one_hour
-    order by sum_load desc
-) t;
--- 19 ms
-select sum(cpu_avg_15min) as sum_load
-from readings
-where
-	time between 2016.11.15 12:00:00 : 2016.11.16 12:00:00,
-    device_id in ['demo000001', 'demo000010', 'demo000100', 'demo001000']
-group by hour(time)
-order by sum_load desc
-// 35 ms
-性能：DolphinDB / TimescaleDB ≈ 1/2    Δ ≈ 15 ms
-
-
--- 查询充电设备的最近 20 条电池温度记录
-select
-    time,
-    device_id,
-    battery_temperature
-from readings
-where battery_status = 'charging'
-order by time desc limit 20;
--- 4 ms
-select top 20
-    time,
-    device_id,
-    battery_temperature
-from readings
-where battery_status = 'charging'
-order by time desc
-// 385 ms （top 20 没有起到缩小查询范围的作用）
-性能：DolphinDB / TimescaleDB ≈ 1/100 倍    Δ ≈ 400 ms
-
-
--- 未在充电的、电量小于 33% 的、平均 1 分钟内最高负载的 5 个设备
-select
-    readings.device_id,
-    battery_level,
-    battery_status,
-    cpu_avg_1min
-from readings join device_info on readings.device_id = device_info.device_id
-where battery_level < 33 and battery_status = 'discharging'
-order by cpu_avg_1min desc, time desc
-limit 5;
--- 8 s 540 ms
-// 未在充电的、电量小于 33% 的、平均 1 分钟内最高负载的 5 个设备
-select
-    time,
-    device_id,
-    battery_temperature
-from readings
-where battery_status = 'charging'
-order by time desc
-// 105.454 ms
-性能：DolphinDB / TimescaleDB ≈ 80 倍    Δ ≈ 8 s
-
-
--- 某两个型号的设备每小时最低电量的前 20 条数据
-select
-    date_trunc('hour', time) "hour",
-    min(battery_level) min_battery_level
-from readings r
-where device_id in (
-    select distinct device_id
-    from device_info
-    where model = 'pinto' or model = 'focus'
-    )
-group by "hour"
-order by "hour" asc
-limit 20;
--- 8 s 47 ms
-timer {
-    device_ids = 
-        exec distinct device_id
-        from device_info
-        where model = 'pinto' or model = 'focus';
-
-    battery_levels = 
-        select min(battery_level) as min_battery_level
-        from readings
-        where device_id in device_ids
-        group by hour(time)
-        order by hour_time asc;
-
-    battery_levels[0:20]
-}
-// 116.365 ms
-性能：DolphinDB / TimescaleDB ≈ 70 倍    Δ ≈ 8 s
-
-
-
--- 按 [股票代码、日期、时间范围] 过滤，并取前 1000 条
-select *
-from taq
-where
-	symbol = 'IBM' and
-	date = '2007-08-03' and
-	time >= '09:30:00'
-limit 1000;
--- 663 ms
-select top 1000 *
-from taq
-where
-	symbol = 'IBM',
-	date = 2007.08.03,
-	time >= 09:30:00
-// 900 ms
-性能：DolphinDB / TimescaleDB ≈ 70%    Δ ≈ 300 ms
 
 
 -- 按 [多个股票代码、日期，时间范围、报价范围] 过滤，查询 [股票代码、时间、买入价、卖出价]
