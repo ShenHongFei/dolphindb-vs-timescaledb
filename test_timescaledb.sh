@@ -74,17 +74,17 @@ timescaledb-parallel-copy \
     --reporting-period 5s \
     --copy-options "CSV" \
     --connection "host=localhost user=postgres password=postgres dbname=test sslmode=disable" \
-    --db-name test3 \
+    --db-name test \
     --table device_info \
     --file /data/devices/csv/devices_big_device_info.csv 
- 
+
 # 导入 readings
 timescaledb-parallel-copy \
     --workers 12 \
     --reporting-period 5s \
     --copy-options "CSV" \
     --connection "host=localhost user=postgres password=postgres dbname=test sslmode=disable" \
-    --db-name test3 \
+    --db-name test \
     --table readings \
     --batch-size 10000 \
     --file /data/devices/csv/devices_big_readings.csv

@@ -1,23 +1,26 @@
-创建分区方案
+REPL
+// ----------------- 路径配置
 FP_TAQ = '/data/TAQ/'
 FP_SAMPLE_TB = FP_TAQ + 'csv/TAQ20070801.csv'
 FP_DB = FP_TAQ + 'db/'
 
+
+
+// ----------------- 创建 schema
 orig_tb_schema = extractTextSchema(FP_SAMPLE_TB)
 // 查看 orig_tb_schema
+
 // 将列名调整为小写避免与 DolphinDB 内置的 SYMBOL, DATE, TIME 等保留关键字产生冲突
 cols = lower(orig_tb_schema.name)
 schema = table(cols, orig_tb_schema.type)
-// table(lower(orig_tb_schema.name), orig_tb_schema.type) 	报错 Every table column should have a unique name. ？？
 
-
-
+// 加载 sample table, 用第一个 CSV 中的股票代码频率作为分区范围的依据
 sample_tb = ploadText(FP_SAMPLE_TB, , schema)
 // 用时 40s
 
-// 用第一个 CSV 中的股票代码频率作为分区范围的依据
 sample_freq_tb = select count(*) from sample_tb group by symbol
 
+sample_tb = NULL
 
 // 8369 rows, [symbol, count], 分到 100 个 buckets
 BIN_NUM = 100
@@ -27,7 +30,8 @@ buckets = cutPoints(sample_freq_tb.symbol, BIN_NUM, sample_freq_tb.count)
 buckets[BIN_NUM] = `ZZZZZZ		// 调整最右边界
 
 
-// 数据库分区
+
+// ----------------- 创建数据库分区
 DATE_RANGE = 2007.01.01..2008.01.01
 
 date_schema   = database('', VALUE, DATE_RANGE)
@@ -36,27 +40,11 @@ symbol_schema = database('', RANGE, buckets)
 db = database(FP_DB, COMPO, [date_schema, symbol_schema])
 
 
-sample_tb = NULL
-
-
 
 
 // --------------------- 导入数据
-
 FP_CSV = FP_TAQ + 'csv/'
 fps = FP_CSV + (exec filename from files(FP_CSV) order by filename)
-
-// 单机硬盘分区数据库不能同时并发写入数据（不支持事务），以下代码报错 The database didn't close normally or another transaction is in the progress.
-/*
-	for (fp in fps) {
-		job_id = fp.strReplace(".csv", "")
-		job_name = job_id
-		fp = FP_TAQ + FP_CSV + fp
-		submitJob(job_id, job_name, loadTextEx{db, `taq, `date`symbol, fp})
-	}
-
-	getRecentJobs(size(fps))
-*/
 
 // pt = loadTextEx(db, `taq, `date`symbol, fps[0], ,schema)
 
@@ -69,14 +57,17 @@ timer {
 }
 // 用时 37m 58s
 
-
 close(db)
 
-// --------------------- 将股票代码和 mmid 的所有取值导出，以此创建 TimescaleDB 的 enum type 的可能取值
-// 加载数据库
+
+
+// --------------------- 加载数据库
 db = database(FP_DB)
 taq = db.loadTable(`taq)
 
+
+
+// --------------------- 将股票代码和 mmid 的所有取值导出，以此创建 TimescaleDB 的 enum type 的可能取值
 select count(*) from taq
 
 symbols_tb =
@@ -97,47 +88,98 @@ mmids_tb =
 
 
 
-// ---------------- 综合查询性能测试
+// ---------------- 查询性能测试
 
-select count(*) from taq
-
-
-// 按 [股票代码、日期、时间范围] 过滤，并取前 1000 条
+// 查询总记录数
 timer
-select top 1000 *
+select count(*) from taq
+where date <= 2007.08.07
+
+
+
+// 1. 点查询：按股票代码、时间查询
+timer
+select *
 from taq
 where
-	symbol = 'IBM',
-	date = 2007.08.03,
-	time >= 09:30:00
-// 383 ms
+	symbol = 'IBM', 
+	date == 2007.08.07
 
 
-// 按 [多个股票代码、日期，时间范围、报价范围] 过滤，查询 [股票代码、时间、买入价、卖出价]
+
+
+// 2. 范围查询：查询某时间段内的某些股票的所有记录
+timer
+select symbol, time, bid, ofr 
+from taq 
+where 
+	symbol in ('IBM', 'MSFT', 'GOOG', 'YHOO'),
+	date between 2007.08.03 : 2007.08.07,
+	time between 09:30:00 : 09:40:00,
+	bid > 20
+
+
+
+// 3. top 1000 + 排序: 按 [股票代码、日期] 过滤，按 [卖出与买入价格差] 降序 排序
+timer 
+select top 1000 *
+from taq 
+where
+	symbol in ('IBM', 'MSFT', 'GOOG', 'YHOO'),
+	date == 2007.08.07,
+	time >= 07:36:37,
+	ofr > bid
+order by (ofr - bid) desc
+
+
+
+// 4. 聚合查询.单分区维度
+timer 
+select 
+	max(bid) as max_bid,
+	min(ofr) as min_ofr
+from taq
+where 
+	date == 2007.08.02,
+	symbol == 'IBM',
+	ofr > bid
+group by minute(time)
+
+
+
+// 5. 聚合查询.多分区维度 + 排序
+timer
+select 
+	std(bid) 	as std_bid,
+	sum(bidsiz) as sum_bidsiz 
+from taq 
+where 
+	date == 2007.08.07,
+	time between 09:00:00 : 21:00:00,
+	symbol in `IBM`MSFT`GOOG`YHOO,
+	bid >= 20,
+	ofr > 20
+group by symbol, minute(time) 
+order by symbol asc, minute_time asc
+
+
+
+
+// 6. 经典查询：按 [多个股票代码、日期，时间范围、报价范围] 过滤，查询 [股票代码、时间、买入价、卖出价]
 timer
 select symbol, time, bid, ofr
 from taq
 where
 	symbol in ('IBM', 'MSFT', 'GOOG', 'YHOO'), 
 	date = 2007.08.03, 
-	time between 09:30:00 : 09:30:59, 
+	time between 09:30:00 : 14:30:00, 
 	bid > 0, 
 	ofr > bid
-// 357 ms
 
 
-// 按 [股票代码、日期] 过滤，按 [卖出与买入价格差] 降序 排序
-timer
-select *
-from taq
-where
-	date = 2007.08.06, 
-	symbol = 'EBAY'
-order by (ofr - bid) as spread desc
-// 402 ms
 
 
-// 按 [日期、时间范围、卖出买入价格条件、股票代码] 过滤，查询 (各个股票 每分钟) [平均变化幅度]
+// 7. 经典查询：按 [日期、时间范围、卖出买入价格条件、股票代码] 过滤，查询 (各个股票 每分钟) [平均变化幅度]
 timer
 select avg( (ofr - bid) / (ofr + bid) ) * 2 as spread 
 from taq 
@@ -147,10 +189,10 @@ where
 	bid > 0,
 	ofr > bid
 group by symbol, minute(time) as minute
-// 16.8 s
 
 
-// 计算 某天 (每个股票 每分钟) 最大卖出与最小买入价之差
+
+// 8. 经典查询：计算 某天 (每个股票 每分钟) 最大卖出与最小买入价之差
 timer
 select max(ofr) - min(bid) as gap 
 from taq 
@@ -159,10 +201,10 @@ where
 	bid > 0, 
 	ofr > bid
 group by symbol, minute(time) as minute
-// 8.4 s
 
 
-// 按 [股票代码、日期段、时间段] 过滤, 查询 (每天，时间段内每分钟) 均价
+
+// 9. 经典查询：按 [股票代码、日期段、时间段] 过滤, 查询 (每天，时间段内每分钟) 均价
 timer
 select avg(ofr + bid) / 2.0 as avg_price
 from taq 
@@ -171,10 +213,10 @@ where
 	date between 2007.08.01 : 2007.08.07,
 	time between 09:30:00 : 16:00:00
 group by date, minute(time) as minute
-// 355 ms
 
 
-// 按 [日期段、时间段] 过滤, 查询 (每股票，每天) 均价
+
+// 10. 经典查询：按 [日期段、时间段] 过滤, 查询 (每股票，每天) 均价
 timer
 select avg(ofr + bid) / 2.0 as avg_price
 from taq 
@@ -182,10 +224,10 @@ where
 	date between 2007.08.05 : 2007.08.07,
 	time between 09:30:00 : 16:00:00
 group by symbol, date
-// 16.7 s
 
 
-// 计算 某个日期段 有成交记录的 (每天, 每股票) 加权均价，并按 (日期，股票代码) 排序
+
+// 11. 经典查询：计算 某个日期段 有成交记录的 (每天, 每股票) 加权均价，并按 (日期，股票代码) 排序
 timer
 select wavg(bid, bidsiz) as vwab 
 from taq
@@ -193,7 +235,6 @@ where date between 2007.08.05 : 2007.08.06
 group by date, symbol
 	having sum(bidsiz) > 0
 order by date desc, symbol
-// 4.3 s
 
 
 

@@ -1,10 +1,14 @@
 REPL
+
 // ----------------- 路径配置
-FP_DEVICES = '/data/devices/'
+FP_DEVICES 	= '/data/devices/'
+
 FP_INFO 	= FP_DEVICES + 'csv/devices_big_device_info.csv'
 FP_READINGS = FP_DEVICES + 'csv/devices_big_readings.csv'
 
-FP_DB = FP_DEVICES + 'db/'
+FP_DB 		= FP_DEVICES + 'db/'
+
+
 
 // ----------------- 创建两张表的 schema
 COLS_INFO 		= `device_id`api_version`manufacturer`model`os_name
@@ -16,7 +20,15 @@ TYPES_READINGS  = `DATETIME`SYMBOL`INT`SYMBOL`DOUBLE`SYMBOL`DOUBLE`DOUBLE`DOUBLE
 schema_info 	= table(COLS_INFO, TYPES_INFO)
 schema_readings = table(COLS_READINGS, TYPES_READINGS)
 
-// ----------------- 创建分区数据库并定义分区方式
+
+
+// ----------------- 从 CSV 导入 device_info 表的数据到 device_info 内存表
+device_info = loadText(FP_INFO, , schema_info)
+
+
+
+
+// ----------------- 创建 readings 分区数据库并定义分区方式
 TIME_RANGE 	= 2016.11.15T00:00:00 + 86400 * 0..4
 ID_RANGE 	= ('demo' + lpad((0..10 * 300)$STRING, 6, "0"))$SYMBOL
 
@@ -26,8 +38,6 @@ id_schema     = database('', RANGE, ID_RANGE)
 db = database(FP_DB, COMPO, [time_schema, id_schema])
 
 
-// ----------------- 从 CSV 导入 device_info 表的数据到 device_info 内存表
-device_info = loadText(FP_INFO, , schema_info)
 
 
 // ----------------- 导出不同的值作为 TimescaleDB 枚举类型的属性
@@ -50,9 +60,11 @@ timer saveText((select * from readings), '/data/devices/readings_dump_dolphindb.
 // 从语句开始执行到数据完全写入硬盘（系统监控中无磁盘写入）的时间为 29 s
 
 
+
 // ----------------- 关闭数据库
 close(db)
 readings = NULL
+
 
 
 // ----------------- 删除数据库
@@ -60,11 +72,12 @@ dropDatabase(FP_DB)
 
 
 
-
 // ----------- 关闭 DolphinDB，清空页面、磁盘、目录项和 inode 缓存后重新启动 DolphinDB 开始测试
 
+
+
 // ----------------- 加载 readings 表
-// 加载磁盘分区表元数据
+// 加载磁盘分区表（仅加载元数据）
 timer readings = loadTable(FP_DB, `readings)
 // 106 ms
 
@@ -72,46 +85,128 @@ timer readings = loadTable(FP_DB, `readings)
 // 加载为内存表
 timer readings = loadTable(FP_DB, `readings, , true)
 // 13.8 s
-readings = loadTable(FP_DB, `readings, 2016.11.15T00:00:00 + 86400 * 0..4, true)
 
 
-// 查看 schema
+
+// ----------------- 查看 schema
 schema(device_info)
 schema(readings)
 
 
 
+// --------------------- 查询性能测试
 
-
-// --------------------- 常用查询性能测试
-
+// 1. 查询总记录数
 timer select count(*) from readings
-// 3 ms
 
 
-// 按设备 ID 查询记录数
+
+// 2. 点查询：按设备 ID 查询记录数
 timer
 select count(*)
 from readings
 where device_id = 'demo000101'
-// 27 ms
-// 5 ms
 
 
-// 查找某时间段内低电量的未充电设备，显示其 ID、最低电量
+
+// 3. 范围查询.单分区维度：查询某时间段内的所有记录
 timer
-select min(battery_level)
+select *
+from readings
+where time between 2016.11.17 21:00:00 : 2016.11.17 21:30:00
+
+
+
+// 4. 范围查询.多分区维度: 查询某时间段内某些设备的所有记录
+timer
+select *
 from readings
 where
-	time between 2016.11.17 21:00:00 : 2016.11.18 09:00:00,
+	time between 2016.11.17 20:00:00 : 2016.11.17 20:30:00,
+	device_id in ['demo000001', 'demo000010', 'demo000100', 'demo001000']
+
+
+
+// 5. 范围查询.分区及非分区维度：查询某时间段内某些设备的特定记录
+timer
+select *
+from readings
+where
+	time between 2016.11.15 20:00:00 : 2016.11.16 22:30:00,
+	device_id in ['demo000001', 'demo000010', 'demo000100', 'demo001000'],
     battery_level <= 10,
     battery_status = 'discharging'
+
+
+
+// 6. 精度查询：查询各设备在每 5 min 内的内存使用量最大、最小值之差
+timer
+select max(mem_used) - min(mem_used)
+from readings
+group by bar(time, 60 * 5)
+
+
+
+// 7. 聚合查询.单分区维度.max：设备电池最高温度
+timer
+select max(battery_temperature)
+from readings
 group by device_id
-// 453 ms (读取了硬盘数据)
-// 11 ms
 
 
-// 计算某时间段内高负载高电量设备的内存大小
+
+
+// 8. 聚合查询.多分区维度.avg：计算各时间段内设备电池平均温度
+timer
+select avg(battery_temperature)
+from readings
+group by device_id, date(time), hour(time)
+
+
+
+// 9. 对比查询：对比 10 个设备 24 小时中每个小时平均电量变化情况
+timer
+select avg(battery_level)
+from readings
+where
+	time between 2016.11.15 07:00:00 : 2016.11.16 06:00:00,
+	device_id < 'demo000010'
+pivot by time.hour(), device_id
+
+
+
+// 10. 关联查询.等值连接：查询连接某个 WiFi 的所有设备的型号
+timer
+select distinct model
+from ej(readings, device_info, 'device_id')
+where ssid = 'demo-net'
+
+
+
+// 11. 关联查询.左连接：列出所有的 WiFi，及其连接设备的型号、系统版本，并去除重复条目
+timer
+select count(*)
+from lsj(readings, device_info, 'device_id')
+where time between 2016.11.15 07:00:00 : 2016.11.15 07:01:00
+group by ssid, bssid, time, model, os_name
+order by ssid, time
+
+
+// 12. 关联查询.笛卡尔积（cross join）
+timer
+select *
+from cj((select * from readings where time = 2016.11.15 07:00:00), device_info)
+
+
+
+// 13. 关联查询.全连接（full join）
+timer
+select *
+from fj((select * from readings), device_info, 'device_id')
+
+
+
+// 14. 经典查询：计算某时间段内高负载高电量设备的内存大小
 timer
 select
 	max(date(time)) as date,
@@ -122,11 +217,11 @@ where
     battery_level >= 90,
     cpu_avg_1min > 90
 group by hour(time), device_id
-// 4600 ms (读取了硬盘数据)
-// 60 ms
 
 
-// 统计连接不同网络的设备的平均电量和最大、最小电量，并按平均电量降序排列
+
+
+// 15. 经典查询：统计连接不同网络的设备的平均电量和最大、最小电量，并按平均电量降序排列
 timer
 select
     max(battery_level) as max_battery,
@@ -135,22 +230,22 @@ select
 from readings
 group by ssid
 order by avg_battery desc
-// 800 ms
-// 63 ms
 
 
-// 查找所有设备平均负载最高的时段，并按照负载降序排列、时间升序排列
+
+
+// 16. 经典查询：查找所有设备平均负载最高的时段，并按照负载降序排列、时间升序排列
 timer
 select floor(avg(cpu_avg_15min)) as load
 from readings
 where time between 2016.11.16 00:00:00 : 2016.11.18 00:00:00
 group by hour(time) as hour
 order by load desc, hour asc;
-// 1600 ms
-// 36 ms
 
 
-// 计算各个时间段内某些设备的总负载，并将时段按总负载降序排列
+
+
+// 17. 经典查询：计算各个时间段内某些设备的总负载，并将时段按总负载降序排列
 timer
 select sum(cpu_avg_15min) as sum_load
 from readings
@@ -159,11 +254,11 @@ where
     device_id in ['demo000001', 'demo000010', 'demo000100', 'demo001000']
 group by hour(time)
 order by sum_load desc
-// 110 ms
-// 6 ms
 
 
-// 查询充电设备的最近 20 条电池温度记录
+
+
+// 18. 经典查询：查询充电设备的最近 20 条电池温度记录
 timer
 select top 20
     time,
@@ -172,12 +267,11 @@ select top 20
 from readings
 where battery_status = 'charging'
 order by time desc
-// 1178 ms (读取了硬盘数据)
-// 45 ms
-// （top 20 没有起到缩小查询范围的作用）
 
 
-// 未在充电的、电量小于 33% 的、平均 1 分钟内最高负载的 5 个设备
+
+
+// 19. 经典查询：未在充电的、电量小于 33% 的、平均 1 分钟内最高负载的 5 个设备
 timer
 select top 5
     readings.device_id,
@@ -187,39 +281,11 @@ select top 5
 from ej(readings, device_info, `device_id)
 where battery_level < 33, battery_status = 'discharging'
 order by cpu_avg_1min desc, time desc
-// 417 ms 
-// 392 ms
 
 
-// 未在充电的、电量小于 33% 的、平均 1 分钟内最高负载的所有设备
-timer
-select
-    readings.device_id,
-    battery_level,
-    battery_status,
-    cpu_avg_1min
-from ej(readings, device_info, `device_id)
-where battery_level < 33, battery_status = 'discharging'
-order by cpu_avg_1min desc, time desc
-// 602 ms
-// 623 ms
 
 
-// 未在充电的、电量小于 33% 的、平均 1 分钟内最高负载的所有设备
-timer
-select top 5
-    readings.device_id,
-    battery_level,
-    battery_status,
-    cpu_avg_1min
-from ej(readings, device_info, `device_id)
-where battery_level < 33, battery_status = 'discharging'
-order by cpu_avg_1min desc, time desc
-// 369 ms
-// 367 ms
-
-
-// 某两个型号的设备每小时最低电量的前 20 条数据
+// 20. 经典查询：某两个型号的设备每小时最低电量的前 20 条数据
 timer {
 	device_ids = 
 		exec distinct device_id
@@ -235,24 +301,11 @@ timer {
 
 	battery_levels[0:20]
 }
-// 97 ms
-// 78 ms
 
 
 
-// --------------- 表连接性能测试
-timer
-select count(device_info)
-from ej(readings, device_info, `device_id)
-// 159 ms
-// 142 ms
 
 
-timer
-select count(device_info)
-from lj(readings, device_info, `device_id)
-// 144 ms
-// 138 ms
 
 
 

@@ -24,3 +24,6 @@ du -sh /data/devices/db
 
 du -sh /data/TAQ/db
 
+# 崩溃调试
+gdb dolphindb core
+
