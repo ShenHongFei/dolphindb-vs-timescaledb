@@ -55,8 +55,8 @@ OS：Ubuntu 16.04 LTS
 
 ### device_info 表
 
-| Column       | DolphinDB | TimescaleDB |
-| ------------ | --------- | ----------- |
+| Column       | DolphinDB　数据类型 | TimescaleDB 数据类型 |
+| ------------ | ------------------- | -------------------- |
 | device_id    | SYMBOL    | text        |
 | api_version  | SYMBOL    | enum        |
 | manufacturer | SYMBOL    | enum        |
@@ -66,7 +66,7 @@ OS：Ubuntu 16.04 LTS
 ### readings 表
 
 
-| Column              | DolphinDB               | TimescaleDB                                  |
+| Column              | DolphinDB 数据类型      | TimescaleDB 数据类型                         |
 | ------------------- | ----------------------- | -------------------------------------------- |
 | time                | DATETIME (分区第一维度) | timestamp with time zone not null (分区维度) |
 | device_id           | SYMBOL (分区第二维度)   | text (有索引)                                |
@@ -308,4 +308,6 @@ TimescaleDB 使用 `select pg_prewarm('_hyper_2_41_chunk')` 加载至 shared_buf
 | 创建 Symbol 枚举类型 SQL 语句 | [make_symbol_enum.sql](make_symbol_enum.sql)             |
 | 生成 Symbol 枚举类型脚本      | [make_symbol_enum.coffee](make_symbol_enum.coffee)       |
 
+-   测试结果处理脚本
 
+    [REPL.coffee](REPL.coffee)

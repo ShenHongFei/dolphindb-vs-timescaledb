@@ -69,7 +69,7 @@ limit 1000;
 
 
 
--- 4. 聚合查询.单分区维度
+-- 4. 聚合查询.单分区维度：查询每分钟的最大卖出报价、最小买入报价
 explain analyze
 select
     date_trunc('minute', time)  as one_minute,
@@ -84,7 +84,7 @@ group by one_minute;
 
 
 
--- 5. 聚合查询.多分区维度 + 排序
+-- 5. 聚合查询.多分区维度 + 排序：按股票代码分组查询每分钟的买入报价标准差和买入数量总和
 explain analyze
 select
     symbol,
